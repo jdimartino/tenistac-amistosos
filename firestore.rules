@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function slotId(data) {
+      return data.fecha + '_' + data.turno + '_' + data.cancha;
+    }
+
+    // USUARIOS: admin escribe; usuario lee solo su propio doc.
+    match /usuarios/{uid} {
+      allow read: if isAdmin() || isOwner(uid);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // RESERVAS: cualquier usuario logueado lee; capitán crea su solicitud si el slot no está bloqueado.
+    match /reservas/{reservaId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.estado == 'solicitado'
+        && request.resource.data.capitanUid == request.auth.uid
+        && !exists(/databases/$(database)/documents/slotsBloqueados/$(slotId(request.resource.data)));
+
+      allow update: if isAdmin();
+
+      allow delete: if isAdmin()
+        || (signedIn()
+            && resource.data.capitanUid == request.auth.uid
+            && resource.data.estado == 'solicitado');
+    }
+
+    // BLOQUEOS: legibles para usuarios logueados; escritura SOLO a través de Cloud Functions (Admin SDK).
+    match /bloqueos/{bloqueoId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // SLOTS BLOQUEADOS: colección derivada. Solo Cloud Functions escribe; todos los usuarios leen.
+    match /slotsBloqueados/{slotId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+  }
+}

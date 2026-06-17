@@ -1,0 +1,49 @@
+export const formatoISO = (d: Date): string => {
+  return d.toISOString().split('T')[0];
+};
+
+export const hoy = (): string => formatoISO(new Date());
+
+export const sumarDias = (fecha: string, dias: number): string => {
+  const d = new Date(`${fecha}T00:00:00`);
+  d.setDate(d.getDate() + dias);
+  return formatoISO(d);
+};
+
+export const diferenciaDias = (a: string, b: string): number => {
+  const da = new Date(`${a}T00:00:00`);
+  const db = new Date(`${b}T00:00:00`);
+  return Math.round((db.getTime() - da.getTime()) / (1000 * 60 * 60 * 24));
+};
+
+export const nombreDia = (fecha: string): string => {
+  const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const d = new Date(`${fecha}T00:00:00`);
+  return dias[d.getDay()];
+};
+
+export const esFechaValida = (fecha: string): boolean => {
+  return /^\d{4}-\d{2}-\d{2}$/.test(fecha) && !Number.isNaN(new Date(`${fecha}T00:00:00`).getTime());
+};
+
+export const generarRangoDias = (inicio: string, fin: string): string[] => {
+  const dias: string[] = [];
+  let actual = inicio;
+  while (actual <= fin) {
+    dias.push(actual);
+    actual = sumarDias(actual, 1);
+  }
+  return dias;
+};
+
+export const inicioSemana = (fecha: string): string => {
+  const d = new Date(`${fecha}T00:00:00`);
+  const diaSemana = d.getDay();
+  const offset = diaSemana === 0 ? -6 : 1 - diaSemana;
+  return sumarDias(fecha, offset);
+};
+
+export const rango15DiasDesde = (fecha: string): string[] => {
+  const inicio = inicioSemana(fecha);
+  return Array.from({ length: 15 }, (_, i) => sumarDias(inicio, i));
+};
