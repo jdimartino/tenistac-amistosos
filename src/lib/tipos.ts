@@ -8,6 +8,7 @@ export type Categoria = 'A' | 'B' | 'C' | 'libre';
 
 export interface Usuario {
   uid: string;
+  username: string;
   email: string;
   displayName: string;
   role: Rol;
@@ -18,10 +19,11 @@ export interface Usuario {
 }
 
 export interface UsuarioInput {
-  email: string;
-  displayName: string;
+  username: string;
+  email?: string;
+  displayName?: string;
   role: Rol;
-  equipo: string;
+  equipo?: string;
 }
 
 export interface Reserva {

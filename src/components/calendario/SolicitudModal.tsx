@@ -45,7 +45,7 @@ export const SolicitudModal = ({ slot, open, onClose }: SolicitudModalProps) => 
           turno: slot.turno,
           cancha: slot.cancha,
           categoria,
-          capitanNombre: usuario.displayName,
+          capitanNombre: usuario.username,
           equipoRival,
           observaciones,
         },
@@ -73,7 +73,7 @@ export const SolicitudModal = ({ slot, open, onClose }: SolicitudModalProps) => 
         <p className="text-sm text-gray-600">
           Fecha: <span className="font-medium text-gray-900">{slot.fecha}</span>
         </p>
-        <Input label="Capitán" value={usuario.displayName} disabled />
+        <Input label="Capitán" value={usuario.username} disabled />
         <Select
           label="Categoría"
           value={categoria}

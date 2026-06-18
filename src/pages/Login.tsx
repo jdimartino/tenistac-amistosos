@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 
 export const Login = () => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { login, error } = useAuth();
@@ -16,13 +16,19 @@ export const Login = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(username.trim().toLowerCase(), password);
       navigate('/');
     } catch {
       // El error se maneja en AuthContext
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Solo permitir letras
+    const value = e.target.value.replace(/[^a-zA-Z]/g, '');
+    setUsername(value);
   };
 
   return (
@@ -33,13 +39,13 @@ export const Login = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            type="email"
-            label="Correo"
-            placeholder="capitan@tenistac.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="text"
+            label="Usuario"
+            placeholder="admin"
+            value={username}
+            onChange={handleUsernameChange}
             required
-            autoComplete="email"
+            autoComplete="username"
           />
           <Input
             type="password"

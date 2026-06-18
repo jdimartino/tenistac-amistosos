@@ -1,0 +1,12 @@
+{"users": [
+{
+  "localId": "kgTaWdKuYidcMEFwCAEuOYhTWir1",
+  "email": "admin@tenistac-amistosos.app",
+  "emailVerified": false,
+  "passwordHash": "C1U9E5YhTm3FMDyFDHWJO+Ys4JVRyMCn2z/95CZ374iQDWIYyEKectZCf8sILdA5X8b5nJrhtQeS4lyjBUF1UQ==",
+  "salt": "hRyZer/FTIODUQ==",
+  "lastSignedInAt": "1781793011148",
+  "createdAt": "1781731336330",
+  "disabled": false,
+  "providerUserInfo": []
+}]}

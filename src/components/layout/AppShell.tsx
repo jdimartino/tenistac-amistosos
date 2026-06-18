@@ -33,7 +33,7 @@ export const AppShell = ({ children }: AppShellProps) => {
                 Admin
               </Link>
             )}
-            <span className="hidden text-sm text-gray-600 sm:inline">{usuario?.displayName}</span>
+            <span className="hidden text-sm text-gray-600 sm:inline">{usuario?.displayName || usuario?.username}</span>
             <Button variant="ghost" size="sm" onClick={logout}>
               Salir
             </Button>

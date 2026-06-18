@@ -15,8 +15,9 @@ const ROLES: { value: Rol; label: string }[] = [
 ];
 
 export const UsuariosPanel = () => {
-  const { usuarios, loading, create, update, remove, resetPassword } = useUsuarios();
+  const { usuarios, loading, create, update, remove, setPassword } = useUsuarios();
   const [form, setForm] = useState({
+    username: '',
     email: '',
     displayName: '',
     role: 'capitan' as Rol,
@@ -24,37 +25,83 @@ export const UsuariosPanel = () => {
     password: '',
   });
   const [editingUid, setEditingUid] = useState<string | null>(null);
-  const [resetLink, setResetLink] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const resetForm = () => {
-    setForm({ email: '', displayName: '', role: 'capitan', equipo: '', password: '' });
+    setForm({ username: '', email: '', displayName: '', role: 'capitan', equipo: '', password: '' });
     setEditingUid(null);
+    setNewPassword(null);
+    setError(null);
+    setSuccess(null);
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (editingUid) {
-      await update(editingUid, {
-        displayName: form.displayName,
-        role: form.role,
-        equipo: form.equipo,
-      });
-    } else {
-      await create({
-        email: form.email,
-        displayName: form.displayName,
-        role: form.role,
-        equipo: form.equipo,
-        password: form.password,
-      });
+    setSubmitting(true);
+    setError(null);
+
+    // Client-side validation
+    const cleanUsername = form.username.trim().toLowerCase();
+    if (!cleanUsername) {
+      setError('El nombre de usuario es obligatorio.');
+      setSubmitting(false);
+      return;
     }
-    resetForm();
+    if (cleanUsername.length < 2) {
+      setError('El nombre de usuario debe tener al menos 2 caracteres.');
+      setSubmitting(false);
+      return;
+    }
+    if (!/^[a-z]+$/.test(cleanUsername)) {
+      setError('El nombre de usuario solo puede contener letras minúsculas.');
+      setSubmitting(false);
+      return;
+    }
+    if (!editingUid && (!form.password || form.password.length < 6)) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      if (editingUid) {
+        await update(editingUid, {
+          username: cleanUsername,
+          email: form.email || '',
+          displayName: form.displayName || '',
+          role: form.role,
+          equipo: form.equipo || '',
+        });
+      } else {
+        await create({
+          username: cleanUsername,
+          email: form.email || '',
+          displayName: form.displayName || '',
+          role: form.role,
+          equipo: form.equipo || '',
+          password: form.password,
+        });
+      }
+      setSuccess(editingUid ? 'Usuario actualizado correctamente' : 'Usuario creado correctamente');
+      setTimeout(() => {
+        resetForm();
+      }, 1200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar el usuario.');
+      console.error('Error creating/updating user:', err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const startEdit = (u: Usuario) => {
     setEditingUid(u.uid);
-    setResetLink(null);
+    setNewPassword(null);
     setForm({
+      username: u.username,
       email: u.email,
       displayName: u.displayName,
       role: u.role,
@@ -63,9 +110,14 @@ export const UsuariosPanel = () => {
     });
   };
 
-  const handleReset = async (uid: string) => {
-    const link = await resetPassword(uid);
-    setResetLink(link);
+  const handleSetPassword = async (uid: string) => {
+    const newPass = prompt('Ingresá la nueva contraseña (mínimo 6 caracteres):');
+    if (!newPass || newPass.length < 6) {
+      alert('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+    const result = await setPassword(uid, newPass);
+    setNewPassword(result);
   };
 
   if (loading) return <Spinner className="h-8 w-8 text-green-600" />;
@@ -78,18 +130,26 @@ export const UsuariosPanel = () => {
         </h3>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
-            label="Correo"
+            label="Usuario"
+            value={form.username}
+            onChange={(e) => {
+              // Solo letras minúsculas
+              const value = e.target.value.toLowerCase().replace(/[^a-z]/g, '');
+              setForm({ ...form, username: value });
+            }}
+            required
+          />
+          <Input
+            label="Correo (referencia - opcional)"
             type="email"
             value={form.email}
-            disabled={!!editingUid}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
-            required
+            placeholder="Opcional"
           />
           <Input
             label="Nombre"
             value={form.displayName}
             onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-            required
           />
           <Select
             label="Rol"
@@ -111,28 +171,49 @@ export const UsuariosPanel = () => {
               required
             />
           )}
+          {editingUid && (
+            <div className="sm:col-span-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => handleSetPassword(editingUid)}
+                className="w-full"
+              >
+                Asignar nueva contraseña
+              </Button>
+            </div>
+          )}
         </div>
         <div className="mt-4 flex gap-3">
-          <Button type="submit">{editingUid ? 'Guardar cambios' : 'Crear usuario'}</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? 'Guardando...' : (editingUid ? 'Guardar cambios' : 'Crear usuario')}
+          </Button>
           {editingUid && (
             <Button type="button" variant="secondary" onClick={resetForm}>
               Cancelar
             </Button>
           )}
         </div>
+        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {success && <p className="mt-2 text-sm text-green-600">{success}</p>}
       </form>
 
-      {resetLink && (
+      {newPassword && (
         <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
-          <p className="font-medium">Link para restablecer contraseña:</p>
-          <a
-            href={resetLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="break-all underline"
-          >
-            {resetLink}
-          </a>
+          <p className="font-medium">Nueva contraseña (copiala ahora):</p>
+          <div className="mt-1 flex items-center gap-2">
+            <code className="rounded bg-green-100 px-2 py-1 font-mono text-base">{newPassword}</code>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(newPassword);
+                alert('Copiado al portapapeles');
+              }}
+            >
+              Copiar
+            </Button>
+          </div>
         </div>
       )}
 
@@ -143,9 +224,11 @@ export const UsuariosPanel = () => {
             className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
-              <p className="font-medium text-gray-900">{u.displayName}</p>
+              <p className="font-medium text-gray-900">{u.username}</p>
               <p className="text-sm text-gray-500">
-                {u.email} · {u.equipo}
+                {u.displayName || u.username}
+                {u.email ? ` · ${u.email}` : ''}
+                {u.equipo ? ` · ${u.equipo}` : ''}
               </p>
               <Badge color={u.role === 'admin' ? 'red' : 'green'}>{u.role}</Badge>
             </div>
@@ -153,7 +236,7 @@ export const UsuariosPanel = () => {
               <Button variant="secondary" size="sm" onClick={() => startEdit(u)}>
                 Editar
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => handleReset(u.uid)}>
+              <Button variant="secondary" size="sm" onClick={() => handleSetPassword(u.uid)}>
                 Reset
               </Button>
               <Button variant="danger" size="sm" onClick={() => remove(u.uid)}>

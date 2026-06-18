@@ -36,9 +36,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return unsubscribe;
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (input: string, password: string) => {
     setError(null);
     try {
+      // Support both username and full email during transition
+      const email = input.includes('@') 
+        ? input 
+        : `${input.toLowerCase()}@tenistac-amistosos.app`;
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión.');

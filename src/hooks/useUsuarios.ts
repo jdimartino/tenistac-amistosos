@@ -8,7 +8,7 @@ import type { Usuario, UsuarioInput } from '../lib/tipos';
 const createUserFn = httpsCallable<(UsuarioInput & { password: string }), void>(functions, 'createUser');
 const updateUserFn = httpsCallable<{ uid: string } & Partial<UsuarioInput>, void>(functions, 'updateUser');
 const deleteUserFn = httpsCallable<{ uid: string }, void>(functions, 'deleteUser');
-const resetPasswordFn = httpsCallable<{ uid: string }, { link: string }>(functions, 'resetPassword');
+const setPasswordFn = httpsCallable<{ uid: string; newPassword: string }, { password: string }>(functions, 'setPassword');
 
 export const useUsuarios = () => {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -40,10 +40,10 @@ export const useUsuarios = () => {
     await deleteUserFn({ uid });
   }, []);
 
-  const resetPassword = useCallback(async (uid: string) => {
-    const result = await resetPasswordFn({ uid });
-    return result.data.link;
+  const setPassword = useCallback(async (uid: string, newPassword: string) => {
+    const result = await setPasswordFn({ uid, newPassword });
+    return result.data.password;
   }, []);
 
-  return { usuarios, loading, error, create, update, remove, resetPassword };
+  return { usuarios, loading, error, create, update, remove, setPassword };
 };

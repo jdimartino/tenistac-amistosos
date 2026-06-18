@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase-admin/app';
+import * as admin from 'firebase-admin';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { setGlobalOptions } from 'firebase-functions/v2';
 
 initializeApp();
@@ -16,6 +17,7 @@ type Turno = 'maniana' | 'tarde';
 type Rol = 'admin' | 'capitan' | 'subcapitan';
 
 interface UsuarioInput {
+  username: string;
   email: string;
   displayName: string;
   role: Rol;
@@ -76,26 +78,98 @@ const expandirBloqueo = async (
 
 export const createUser = onCall<UsuarioInput & { password: string }, Promise<{ uid: string }>>(
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    try {
+      if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+      }
+      await assertAdmin(request.auth.uid);
+
+      const data = request.data;
+
+      // Validar username
+      if (!data.username || typeof data.username !== 'string') {
+        throw new HttpsError('invalid-argument', 'El nombre de usuario es obligatorio.');
+      }
+
+      const username = data.username.toLowerCase().trim();
+
+      if (username.length < 2) {
+        throw new HttpsError('invalid-argument', 'El nombre de usuario debe tener al menos 2 caracteres.');
+      }
+
+      // Validar que solo contenga letras
+      if (!/^[a-z]+$/.test(username)) {
+        throw new HttpsError('invalid-argument', 'El nombre de usuario solo puede contener letras minúsculas.');
+      }
+
+      if (!data.password || data.password.length < 6) {
+        throw new HttpsError('invalid-argument', 'La contraseña debe tener al menos 6 caracteres.');
+      }
+
+      // Verificar unicidad del username
+      const existing = await db.collection('usuarios').where('username', '==', username).get();
+      if (!existing.empty) {
+        throw new HttpsError('already-exists', 'El nombre de usuario ya está en uso.');
+      }
+
+      const internalEmail = `${username}@tenistac-amistosos.app`;
+
+      // Validar formato del email generado
+      if (!/^[\w.-]+@[\w.-]+\.\w+$/.test(internalEmail)) {
+        throw new HttpsError('invalid-argument', 'Formato de email inválido generado.');
+      }
+
+      console.log('Creating user with:', {
+        username,
+        internalEmail,
+        hasPassword: !!data.password,
+        referenceEmail: data.email || '',
+      });
+
+      const finalDisplayName = (data.displayName && data.displayName.trim()) 
+        ? data.displayName.trim() 
+        : username;
+
+      const createUserData: admin.auth.CreateRequest = {
+        email: internalEmail,
+        password: data.password,
+        displayName: finalDisplayName,
+      };
+
+      let user;
+      try {
+        user = await auth.createUser(createUserData);
+      } catch (err: any) {
+        console.error('Auth creation failed:', err, 'with data:', createUserData);
+        if (err.code?.includes('email-already-exists')) {
+          throw new HttpsError('already-exists', 'Ya existe un usuario con ese username.');
+        }
+        throw new HttpsError('internal', `Error creando usuario en Auth: ${err.message}`);
+      }
+
+      await db.collection('usuarios').doc(user.uid).set({
+        uid: user.uid,
+        username,
+        email: data.email || '',
+        internalEmail,
+        displayName: finalDisplayName,
+        role: data.role,
+        equipo: data.equipo || '',
+        activo: true,
+        createdAt: Timestamp.now(),
+        createdBy: request.auth.uid,
+      });
+
+      return { uid: user.uid };
+    } catch (error: any) {
+      console.error('createUser error:', error);
+      
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      
+      throw new HttpsError('internal', error.message || 'Error interno al crear el usuario.');
     }
-    await assertAdmin(request.auth.uid);
-
-    const { email, password, displayName, role, equipo } = request.data;
-    const user = await auth.createUser({ email, password, displayName });
-
-    await db.collection('usuarios').doc(user.uid).set({
-      uid: user.uid,
-      email,
-      displayName,
-      role,
-      equipo: equipo || '',
-      activo: true,
-      createdAt: Timestamp.now(),
-      createdBy: request.auth.uid,
-    });
-
-    return { uid: user.uid };
   }
 );
 
@@ -108,11 +182,29 @@ export const updateUser = onCall<
   }
   await assertAdmin(request.auth.uid);
 
-  const { uid, ...data } = request.data;
-  const authUpdate: { displayName?: string } = {};
+  const { uid, username, ...data } = request.data;
+
+  // Si se está cambiando el username, verificar unicidad
+  if (username) {
+    const existing = await db.collection('usuarios').where('username', '==', username).get();
+    const isTakenByOther = existing.docs.some(doc => doc.id !== uid);
+    if (isTakenByOther) {
+      throw new HttpsError('already-exists', 'El nombre de usuario ya está en uso.');
+    }
+  }
+
+  const authUpdate: { displayName?: string; email?: string } = {};
   if (data.displayName) authUpdate.displayName = data.displayName;
-  await auth.updateUser(uid, authUpdate);
-  await db.collection('usuarios').doc(uid).update(data);
+  if (username) authUpdate.email = `${username}@tenistac-amistosos.app`;
+
+  if (Object.keys(authUpdate).length > 0) {
+    await auth.updateUser(uid, authUpdate);
+  }
+
+  const updateData: any = { ...data };
+  if (username) updateData.username = username;
+
+  await db.collection('usuarios').doc(uid).update(updateData);
 });
 
 export const deleteUser = onCall<{ uid: string }, void>(async (request) => {
@@ -126,20 +218,22 @@ export const deleteUser = onCall<{ uid: string }, void>(async (request) => {
   await db.collection('usuarios').doc(uid).delete();
 });
 
-export const resetPassword = onCall<{ uid: string }, Promise<{ link: string }>>(
+export const setPassword = onCall<{ uid: string; newPassword: string }, Promise<{ password: string }>>(
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
     await assertAdmin(request.auth.uid);
 
-    const { uid } = request.data;
-    const user = await auth.getUser(uid);
-    if (!user.email) {
-      throw new HttpsError('not-found', 'El usuario no tiene correo registrado.');
+    const { uid, newPassword } = request.data;
+
+    if (!newPassword || newPassword.length < 6) {
+      throw new HttpsError('invalid-argument', 'La contraseña debe tener al menos 6 caracteres.');
     }
-    const link = await auth.generatePasswordResetLink(user.email);
-    return { link };
+
+    await auth.updateUser(uid, { password: newPassword });
+
+    return { password: newPassword };
   }
 );
 
@@ -183,4 +277,30 @@ export const deleteBloqueo = onCall<{ id: string }, void>(async (request) => {
   await batch.commit();
 
   await db.collection('bloqueos').doc(id).delete();
+});
+
+// TEMPORARY: Bootstrap existing admin user to use synthetic email for username login
+export const bootstrapAdminUser = onRequest(async (req, res) => {
+  if (req.query.secret !== 'tenistac-bootstrap-2026-x7k9') {
+    res.status(403).send('Forbidden');
+    return;
+  }
+
+  const uid = 'kgTaWdKuYidcMEFwCAEuOYhTWir1';
+  const newInternalEmail = 'admin@tenistac-amistosos.app';
+
+  try {
+    // Update Auth user email to the synthetic one
+    await auth.updateUser(uid, { email: newInternalEmail });
+
+    // Ensure Firestore has the username
+    await db.collection('usuarios').doc(uid).update({
+      username: 'admin'
+    });
+
+    res.send('✅ Admin user migrated successfully. Email changed to ' + newInternalEmail + ' and username set to "admin".');
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).send('Error: ' + error.message);
+  }
 });
