@@ -18,6 +18,8 @@ const CANCHAS_OPCIONES = [
   { value: '1', label: 'Cancha 1' },
   { value: '2', label: 'Cancha 2' },
   { value: '3', label: 'Cancha 3' },
+  { value: '4', label: 'Cancha 4' },
+  { value: '5', label: 'Cancha 5' },
 ];
 
 export const BloqueosPanel = () => {

@@ -1,15 +1,19 @@
 import { useState } from 'react';
 import { AppShell } from '../components/layout/AppShell';
 import { CalendarioGrid } from '../components/calendario/CalendarioGrid';
+import { CalendarioCapitan } from '../components/calendario/CalendarioCapitan';
 import { Button } from '../components/ui/Button';
 import { hoy, sumarDias, inicioSemana } from '../lib/fecha';
+import { useAuth } from '../hooks/useAuth';
 
 const DIAS_POR_VISTA = 15;
 
 export const Calendario = () => {
+  const { usuario } = useAuth();
   const [inicio, setInicio] = useState(inicioSemana(hoy()));
 
   const fin = sumarDias(inicio, DIAS_POR_VISTA - 1);
+  const esAdmin = usuario?.role === 'admin';
 
   const avanzar = () => setInicio((prev) => sumarDias(prev, DIAS_POR_VISTA));
   const retroceder = () => setInicio((prev) => sumarDias(prev, -DIAS_POR_VISTA));
@@ -28,7 +32,11 @@ export const Calendario = () => {
       <Button variant="ghost" size="sm" onClick={resetear} className="mb-4 w-full sm:w-auto">
         Hoy
       </Button>
-      <CalendarioGrid fechaInicio={inicio} fechaFin={fin} />
+      {esAdmin ? (
+        <CalendarioGrid fechaInicio={inicio} fechaFin={fin} />
+      ) : (
+        <CalendarioCapitan fechaInicio={inicio} fechaFin={fin} />
+      )}
     </AppShell>
   );
 };

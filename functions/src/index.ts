@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase-admin/app';
 import * as admin from 'firebase-admin';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { setGlobalOptions } from 'firebase-functions/v2';
 
 initializeApp();
@@ -11,7 +11,7 @@ const auth = getAuth();
 
 setGlobalOptions({ region: 'us-central1' });
 
-const CANCHAS = [1, 2, 3];
+const CANCHAS = [1, 2, 3, 4, 5];
 
 type Turno = 'maniana' | 'tarde';
 type Rol = 'admin' | 'capitan' | 'subcapitan';
@@ -279,28 +279,3 @@ export const deleteBloqueo = onCall<{ id: string }, void>(async (request) => {
   await db.collection('bloqueos').doc(id).delete();
 });
 
-// TEMPORARY: Bootstrap existing admin user to use synthetic email for username login
-export const bootstrapAdminUser = onRequest(async (req, res) => {
-  if (req.query.secret !== 'tenistac-bootstrap-2026-x7k9') {
-    res.status(403).send('Forbidden');
-    return;
-  }
-
-  const uid = 'kgTaWdKuYidcMEFwCAEuOYhTWir1';
-  const newInternalEmail = 'admin@tenistac-amistosos.app';
-
-  try {
-    // Update Auth user email to the synthetic one
-    await auth.updateUser(uid, { email: newInternalEmail });
-
-    // Ensure Firestore has the username
-    await db.collection('usuarios').doc(uid).update({
-      username: 'admin'
-    });
-
-    res.send('✅ Admin user migrated successfully. Email changed to ' + newInternalEmail + ' and username set to "admin".');
-  } catch (error: any) {
-    console.error(error);
-    res.status(500).send('Error: ' + error.message);
-  }
-});

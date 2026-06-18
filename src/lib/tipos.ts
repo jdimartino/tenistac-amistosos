@@ -2,6 +2,8 @@ export type Rol = 'admin' | 'capitan' | 'subcapitan';
 
 export type Turno = 'maniana' | 'tarde';
 
+export type PreferenciaTurno = 'maniana' | 'tarde' | 'cualquiera';
+
 export type EstadoReserva = 'solicitado' | 'reservado' | 'cancelado';
 
 export type Categoria = 'A' | 'B' | 'C' | 'libre';
@@ -29,8 +31,9 @@ export interface UsuarioInput {
 export interface Reserva {
   id: string;
   fecha: string;
-  turno: Turno;
-  cancha: number;
+  turno: Turno | null;
+  turnoPreferencia: PreferenciaTurno;
+  cancha: number | null;
   estado: EstadoReserva;
   categoria: Categoria;
   capitanNombre: string;
@@ -44,8 +47,7 @@ export interface Reserva {
 
 export interface ReservaInput {
   fecha: string;
-  turno: Turno;
-  cancha: number;
+  turnoPreferencia: PreferenciaTurno;
   categoria: Categoria;
   capitanNombre: string;
   equipoRival: string;

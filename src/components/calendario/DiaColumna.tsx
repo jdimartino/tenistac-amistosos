@@ -24,7 +24,7 @@ export const DiaColumna = ({ fecha, slots }: DiaColumnaProps) => {
             <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500">
               {turno === 'maniana' ? 'Mañana 08:00' : 'Tarde 14:00'}
             </h3>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               {slots
                 .filter((s) => s.turno === turno)
                 .map((slot) => (

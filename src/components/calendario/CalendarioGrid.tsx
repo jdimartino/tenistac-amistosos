@@ -4,7 +4,7 @@ import { sumarDias } from '../../lib/fecha';
 import { DiaColumna } from './DiaColumna';
 import { Spinner } from '../ui/Spinner';
 
-const CANCHAS = 3;
+const CANCHAS = 5;
 
 interface CalendarioGridProps {
   fechaInicio: string;

@@ -26,21 +26,26 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // RESERVAS: cualquier usuario logueado lee; capitán crea su solicitud si el slot no está bloqueado.
+    // RESERVAS: cualquier usuario logueado lee; capitán crea su solicitud si el día no está bloqueado.
     match /reservas/{reservaId} {
       allow read: if signedIn();
 
+      // Crear solicitud sin turno/cancha (solo fecha y preferencia de turno)
       allow create: if signedIn()
         && request.resource.data.estado == 'solicitado'
         && request.resource.data.capitanUid == request.auth.uid
-        && !exists(/databases/$(database)/documents/slotsBloqueados/$(slotId(request.resource.data)));
+        && request.resource.data.turno == null
+        && request.resource.data.cancha == null
+        && request.resource.data.turnoPreferencia in ['maniana', 'tarde', 'cualquiera']
+        && !exists(/databases/$(database)/documents/bloqueos/$(request.resource.data.fecha));
 
+      // Capitán puede cancelar su propia solicitud pendiente
+      allow delete: if signedIn()
+        && resource.data.capitanUid == request.auth.uid
+        && resource.data.estado == 'solicitado';
+
+      // Solo admin puede asignar turno/cancha y aprobar
       allow update: if isAdmin();
-
-      allow delete: if isAdmin()
-        || (signedIn()
-            && resource.data.capitanUid == request.auth.uid
-            && resource.data.estado == 'solicitado');
     }
 
     // BLOQUEOS: legibles para usuarios logueados; escritura SOLO a través de Cloud Functions (Admin SDK).

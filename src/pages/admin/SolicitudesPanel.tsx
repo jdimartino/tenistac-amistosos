@@ -6,13 +6,21 @@ import { useReservas } from '../../hooks/useReservas';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
-import type { Reserva } from '../../lib/tipos';
+import type { Reserva, Turno } from '../../lib/tipos';
+
+const TURNOS: { value: Turno; label: string }[] = [
+  { value: 'maniana', label: 'Mañana' },
+  { value: 'tarde', label: 'Tarde' },
+];
+
+const CANCHAS = [1, 2, 3, 4, 5];
 
 export const SolicitudesPanel = () => {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
   const { usuario } = useAuth();
   const { aprobar, cancelar } = useReservas();
+  const [asignaciones, setAsignaciones] = useState<Record<string, { turno: Turno; cancha: number }>>({});
 
   useEffect(() => {
     const q = query(
@@ -26,6 +34,32 @@ export const SolicitudesPanel = () => {
     });
   }, []);
 
+  const handleAsignar = async (reserva: Reserva) => {
+    const asignacion = asignaciones[reserva.id];
+    if (!asignacion) {
+      alert('Selecciona turno y cancha antes de asignar');
+      return;
+    }
+    if (!usuario) return;
+    await aprobar(reserva.id, usuario.uid, asignacion.turno, asignacion.cancha);
+  };
+
+  const updateAsignacion = (reservaId: string, field: 'turno' | 'cancha', value: Turno | number) => {
+    setAsignaciones(prev => ({
+      ...prev,
+      [reservaId]: {
+        ...prev[reservaId],
+        [field]: value,
+      },
+    }));
+  };
+
+  const getTurnoPreferenciaLabel = (turno: string | null | undefined) => {
+    if (turno === 'maniana') return 'Mañana';
+    if (turno === 'tarde') return 'Tarde';
+    return 'Cualquiera';
+  };
+
   if (loading) return <Spinner className="h-8 w-8 text-green-600" />;
 
   return (
@@ -38,17 +72,44 @@ export const SolicitudesPanel = () => {
           <div className="mb-2 flex items-center justify-between">
             <Badge color="yellow">Solicitado</Badge>
             <span className="text-xs text-gray-500">
-              {r.fecha} · {r.turno === 'maniana' ? 'Mañana' : 'Tarde'} · Cancha {r.cancha}
+              {r.fecha}
             </span>
           </div>
           <p className="font-medium text-gray-900">{r.capitanNombre}</p>
           <p className="text-sm text-gray-600">
             vs {r.equipoRival} · Cat. {r.categoria}
           </p>
+          <p className="text-sm text-blue-600">
+            Prefiere: {getTurnoPreferenciaLabel(r.turnoPreferencia)}
+          </p>
           {r.observaciones && <p className="mt-1 text-sm text-gray-500">{r.observaciones}</p>}
+          
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <select
+              value={asignaciones[r.id]?.turno || ''}
+              onChange={(e) => updateAsignacion(r.id, 'turno', e.target.value as Turno)}
+              className="rounded border border-gray-300 px-2 py-1 text-sm"
+            >
+              <option value="">Turno...</option>
+              {TURNOS.map(t => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+            <select
+              value={asignaciones[r.id]?.cancha || ''}
+              onChange={(e) => updateAsignacion(r.id, 'cancha', Number(e.target.value))}
+              className="rounded border border-gray-300 px-2 py-1 text-sm"
+            >
+              <option value="">Cancha...</option>
+              {CANCHAS.map(c => (
+                <option key={c} value={c}>Cancha {c}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="mt-3 flex gap-2">
-            <Button size="sm" onClick={() => usuario && aprobar(r.id, usuario.uid)}>
-              Reservar
+            <Button size="sm" onClick={() => handleAsignar(r)}>
+              Asignar
             </Button>
             <Button variant="danger" size="sm" onClick={() => cancelar(r.id)}>
               Rechazar
