@@ -279,3 +279,67 @@ export const deleteBloqueo = onCall<{ id: string }, void>(async (request) => {
   await db.collection('bloqueos').doc(id).delete();
 });
 
+export const updateBloqueo = onCall<{ id: string } & BloqueoInput, void>(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+  }
+  await assertAdmin(request.auth.uid);
+
+  const { id, tipo, fechaInicio, fechaFin, turno, cancha, motivo } = request.data;
+
+  // Borrar slots viejos
+  const oldSlots = await db.collection('slotsBloqueados').where('bloqueoId', '==', id).get();
+  const deleteBatch = db.batch();
+  oldSlots.docs.forEach((d) => deleteBatch.delete(d.ref));
+  await deleteBatch.commit();
+
+  // Actualizar documento
+  await db.collection('bloqueos').doc(id).update({
+    tipo,
+    fechaInicio,
+    fechaFin,
+    turno,
+    cancha: cancha ?? null,
+    motivo,
+  });
+
+  // Expandir nuevos slots
+  await expandirBloqueo(id, fechaInicio, fechaFin, turno, cancha, motivo);
+});
+
+export const backfillBloqueos = onCall<void, Promise<{ message: string }>>(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+  }
+  await assertAdmin(request.auth.uid);
+
+  const bloqueosSnap = await db.collection('bloqueos').get();
+  let count = 0;
+
+  for (const doc of bloqueosSnap.docs) {
+    const data = doc.data();
+    try {
+      // Borrar slots viejos para este bloqueo (por si acaso)
+      const oldSlots = await db.collection('slotsBloqueados').where('bloqueoId', '==', doc.id).get();
+      const deleteBatch = db.batch();
+      oldSlots.docs.forEach((d) => deleteBatch.delete(d.ref));
+      await deleteBatch.commit();
+
+      // Re-expandir
+      await expandirBloqueo(
+        doc.id,
+        data.fechaInicio,
+        data.fechaFin,
+        data.turno,
+        data.cancha ?? null,
+        data.motivo
+      );
+      count++;
+    } catch (err: any) {
+      console.error(`Error backfilling bloqueo ${doc.id}:`, err.message);
+    }
+  }
+
+  return { message: `Backfill completado: ${count} bloqueo(s) procesado(s).` };
+});
+

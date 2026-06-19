@@ -22,7 +22,7 @@ export const resolverEstadoSlot = (
 export const construirSlotsDia = (
   fecha: string,
   canchas: number,
-  reservas: Record<string, Reserva>,
+  reservas: Reserva[],
   bloqueos: Record<string, SlotBloqueado>
 ): SlotInfo[] => {
   const turnos: Turno[] = ['maniana', 'tarde'];
@@ -30,9 +30,14 @@ export const construirSlotsDia = (
 
   for (const turno of turnos) {
     for (let cancha = 1; cancha <= canchas; cancha++) {
-      const id = slotId(fecha, turno, cancha);
-      const reserva = reservas[id];
-      const bloqueo = bloqueos[id];
+      const slotBloqueoKey = slotId(fecha, turno, cancha);
+      const bloqueo = bloqueos[slotBloqueoKey];
+      
+      // Buscar reserva asignada a este slot especifico (turno y cancha no null)
+      const reserva = reservas.find(
+        r => r.fecha === fecha && r.turno === turno && r.cancha === cancha
+      );
+
       slots.push({
         fecha,
         turno,
@@ -45,6 +50,10 @@ export const construirSlotsDia = (
   }
 
   return slots;
+};
+
+export const getSolicitudesPendientesDia = (fecha: string, reservas: Reserva[]): Reserva[] => {
+  return reservas.filter(r => r.fecha === fecha && r.estado === 'solicitado');
 };
 
 export const coloresSlot: Record<EstadoSlot, string> = {

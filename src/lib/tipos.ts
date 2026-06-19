@@ -6,8 +6,6 @@ export type PreferenciaTurno = 'maniana' | 'tarde' | 'cualquiera';
 
 export type EstadoReserva = 'solicitado' | 'reservado' | 'cancelado';
 
-export type Categoria = 'A' | 'B' | 'C' | 'libre';
-
 export interface Usuario {
   uid: string;
   username: string;
@@ -35,7 +33,7 @@ export interface Reserva {
   turnoPreferencia: PreferenciaTurno;
   cancha: number | null;
   estado: EstadoReserva;
-  categoria: Categoria;
+  capitanEquipo: string;
   capitanNombre: string;
   capitanUid: string;
   equipoRival: string;
@@ -48,7 +46,7 @@ export interface Reserva {
 export interface ReservaInput {
   fecha: string;
   turnoPreferencia: PreferenciaTurno;
-  categoria: Categoria;
+  capitanEquipo: string;
   capitanNombre: string;
   equipoRival: string;
   observaciones: string;

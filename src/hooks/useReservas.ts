@@ -43,5 +43,12 @@ export const useReservas = () => {
     await deleteDoc(reservaDoc(id));
   }, []);
 
-  return { enviarSolicitud, aprobar, cancelar };
+  const editarReserva = useCallback(async (
+    id: string,
+    data: Partial<ReservaInput> & { turno?: Turno | null; cancha?: number | null; capitanNombre?: string }
+  ) => {
+    await updateDoc(reservaDoc(id), data);
+  }, []);
+
+  return { enviarSolicitud, aprobar, cancelar, editarReserva };
 };

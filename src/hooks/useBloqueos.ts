@@ -7,6 +7,7 @@ import type { Bloqueo, BloqueoInput } from '../lib/tipos';
 
 const createBloqueoFn = httpsCallable<BloqueoInput, { id: string }>(functions, 'createBloqueo');
 const deleteBloqueoFn = httpsCallable<{ id: string }, void>(functions, 'deleteBloqueo');
+const updateBloqueoFn = httpsCallable<{ id: string } & BloqueoInput, void>(functions, 'updateBloqueo');
 
 export const useBloqueos = () => {
   const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
@@ -28,5 +29,9 @@ export const useBloqueos = () => {
     await deleteBloqueoFn({ id });
   }, []);
 
-  return { bloqueos, loading, create, remove };
+  const update = useCallback(async (id: string, input: BloqueoInput) => {
+    await updateBloqueoFn({ id, ...input });
+  }, []);
+
+  return { bloqueos, loading, create, remove, update };
 };

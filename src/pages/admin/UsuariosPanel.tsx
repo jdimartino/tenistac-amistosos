@@ -29,6 +29,8 @@ export const UsuariosPanel = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [resetLoading, setResetLoading] = useState<string | null>(null);
+  const [deletingUid, setDeletingUid] = useState<string | null>(null);
 
   const resetForm = () => {
     setForm({ username: '', email: '', displayName: '', role: 'capitan', equipo: '', password: '' });
@@ -116,8 +118,27 @@ export const UsuariosPanel = () => {
       alert('La contraseña debe tener al menos 6 caracteres');
       return;
     }
-    const result = await setPassword(uid, newPass);
-    setNewPassword(result);
+    setResetLoading(uid);
+    try {
+      const result = await setPassword(uid, newPass);
+      setNewPassword(result);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al cambiar la contraseña');
+    } finally {
+      setResetLoading(null);
+    }
+  };
+
+  const handleDelete = async (uid: string) => {
+    if (!confirm('¿Estás seguro de eliminar este usuario?')) return;
+    setDeletingUid(uid);
+    try {
+      await remove(uid);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar el usuario');
+    } finally {
+      setDeletingUid(null);
+    }
   };
 
   if (loading) return <Spinner className="h-8 w-8 text-green-600" />;
@@ -236,11 +257,21 @@ export const UsuariosPanel = () => {
               <Button variant="secondary" size="sm" onClick={() => startEdit(u)}>
                 Editar
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => handleSetPassword(u.uid)}>
-                Reset
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleSetPassword(u.uid)}
+                disabled={resetLoading === u.uid}
+              >
+                {resetLoading === u.uid ? 'Reseteando...' : 'Reset'}
               </Button>
-              <Button variant="danger" size="sm" onClick={() => remove(u.uid)}>
-                Eliminar
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => handleDelete(u.uid)}
+                disabled={deletingUid === u.uid}
+              >
+                {deletingUid === u.uid ? 'Eliminando...' : 'Eliminar'}
               </Button>
             </div>
           </div>

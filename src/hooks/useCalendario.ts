@@ -4,7 +4,7 @@ import { bloqueosRef, reservasRef, slotsBloqueadosRef } from '../firebase/refs';
 import type { Reserva, Bloqueo, SlotBloqueado } from '../lib/tipos';
 
 export const useCalendario = (fechaInicio: string, fechaFin: string) => {
-  const [reservas, setReservas] = useState<Record<string, Reserva>>({});
+  const [reservas, setReservas] = useState<Reserva[]>([]);
   const [bloqueos, setBloqueos] = useState<Record<string, SlotBloqueado>>({});
   const [rawBloqueos, setRawBloqueos] = useState<Bloqueo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,14 +30,10 @@ export const useCalendario = (fechaInicio: string, fechaFin: string) => {
     const qBloqueos = query(bloqueosRef, orderBy('creadoEn', 'desc'));
 
     const unsubReservas = onSnapshot(qReservas, (snap) => {
-      const map: Record<string, Reserva> = {};
-      snap.docs.forEach((d) => {
-        const r = { id: d.id, ...d.data() } as Reserva;
-        if (r.estado !== 'cancelado') {
-          map[r.id] = r;
-        }
-      });
-      setReservas(map);
+      const list = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }) as Reserva)
+        .filter((r) => r.estado !== 'cancelado');
+      setReservas(list);
       setLoading(false);
     }, (err) => {
       setError(err.message);

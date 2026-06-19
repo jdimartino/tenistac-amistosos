@@ -16,10 +16,6 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
-    function slotId(data) {
-      return data.fecha + '_' + data.turno + '_' + data.cancha;
-    }
-
     // USUARIOS: admin escribe; usuario lee solo su propio doc.
     match /usuarios/{uid} {
       allow read: if isAdmin() || isOwner(uid);

@@ -3,7 +3,7 @@ import { AppShell } from '../components/layout/AppShell';
 import { CalendarioGrid } from '../components/calendario/CalendarioGrid';
 import { CalendarioCapitan } from '../components/calendario/CalendarioCapitan';
 import { Button } from '../components/ui/Button';
-import { hoy, sumarDias, inicioSemana } from '../lib/fecha';
+import { hoy, sumarDias, inicioSemana, formatoFecha } from '../lib/fecha';
 import { useAuth } from '../hooks/useAuth';
 
 const DIAS_POR_VISTA = 15;
@@ -25,7 +25,7 @@ export const Calendario = () => {
         <Button variant="secondary" size="sm" onClick={retroceder}>Ant.</Button>
         <div className="text-center">
           <h2 className="text-base font-semibold text-gray-900">Calendario de canchas</h2>
-          <p className="text-xs text-gray-500">{inicio} al {fin}</p>
+          <p className="text-xs text-gray-500">{formatoFecha(inicio)} al {formatoFecha(fin)}</p>
         </div>
         <Button variant="secondary" size="sm" onClick={avanzar}>Sig.</Button>
       </div>

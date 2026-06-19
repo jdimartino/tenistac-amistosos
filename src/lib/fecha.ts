@@ -47,3 +47,13 @@ export const rango15DiasDesde = (fecha: string): string[] => {
   const inicio = inicioSemana(fecha);
   return Array.from({ length: 15 }, (_, i) => sumarDias(inicio, i));
 };
+
+export const formatoFecha = (fecha: string): string => {
+  const [, mes, dia] = fecha.split('-');
+  return `${dia}/${mes}`;
+};
+
+export const formatoFechaCompleto = (fecha: string): string => {
+  const [anio, mes, dia] = fecha.split('-');
+  return `${dia}/${mes}/${anio}`;
+};

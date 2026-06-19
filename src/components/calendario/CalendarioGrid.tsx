@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { useCalendario } from '../../hooks/useCalendario';
-import { construirSlotsDia } from '../../lib/slot';
+import { construirSlotsDia, getSolicitudesPendientesDia } from '../../lib/slot';
 import { sumarDias } from '../../lib/fecha';
 import { DiaColumna } from './DiaColumna';
+import { EditarReservaModal } from './EditarReservaModal';
 import { Spinner } from '../ui/Spinner';
+import type { Reserva } from '../../lib/tipos';
 
 const CANCHAS = 5;
 
@@ -13,6 +16,7 @@ interface CalendarioGridProps {
 
 export const CalendarioGrid = ({ fechaInicio, fechaFin }: CalendarioGridProps) => {
   const { reservas, bloqueos, loading, error } = useCalendario(fechaInicio, fechaFin);
+  const [reservaEditando, setReservaEditando] = useState<Reserva | null>(null);
 
   const dias: string[] = [];
   for (let i = 0; i < 15; i++) {
@@ -32,11 +36,29 @@ export const CalendarioGrid = ({ fechaInicio, fechaFin }: CalendarioGridProps) =
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-      {dias.map((fecha) => {
-        const slots = construirSlotsDia(fecha, CANCHAS, reservas, bloqueos);
-        return <DiaColumna key={fecha} fecha={fecha} slots={slots} />;
-      })}
-    </div>
+    <>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {dias.map((fecha) => {
+          const slots = construirSlotsDia(fecha, CANCHAS, reservas, bloqueos);
+          const pendientes = getSolicitudesPendientesDia(fecha, reservas);
+          return (
+            <DiaColumna
+              key={fecha}
+              fecha={fecha}
+              slots={slots}
+              pendientes={pendientes}
+              onEditarReserva={setReservaEditando}
+            />
+          );
+        })}
+      </div>
+
+      {reservaEditando && (
+        <EditarReservaModal
+          reserva={reservaEditando}
+          onClose={() => setReservaEditando(null)}
+        />
+      )}
+    </>
   );
 };

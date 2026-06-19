@@ -21,7 +21,11 @@ export const AppShell = ({ children }: AppShellProps) => {
     <div className="flex min-h-screen flex-col bg-gray-50">
       <header className="safe-top sticky top-0 z-30 border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <h1 className="text-lg font-bold text-green-700">TennisTac Amistosos</h1>
+          <h1 className="text-lg font-bold text-green-700 leading-tight">
+  Club Táchira<br />
+  <span className="text-base font-normal">Solicitud de Canchas</span><br />
+  <span className="text-xs font-normal text-black">Beta 1.0</span>
+</h1>
           <div className="flex items-center gap-3">
             {isAdmin && (
               <Link

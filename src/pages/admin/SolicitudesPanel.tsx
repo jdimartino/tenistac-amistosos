@@ -6,7 +6,9 @@ import { useReservas } from '../../hooks/useReservas';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
+import { EditarReservaModal } from '../../components/calendario/EditarReservaModal';
 import type { Reserva, Turno } from '../../lib/tipos';
+import { formatoFechaCompleto } from '../../lib/fecha';
 
 const TURNOS: { value: Turno; label: string }[] = [
   { value: 'maniana', label: 'Mañana' },
@@ -21,6 +23,9 @@ export const SolicitudesPanel = () => {
   const { usuario } = useAuth();
   const { aprobar, cancelar } = useReservas();
   const [asignaciones, setAsignaciones] = useState<Record<string, { turno: Turno; cancha: number }>>({});
+  const [asignandoId, setAsignandoId] = useState<string | null>(null);
+  const [rechazandoId, setRechazandoId] = useState<string | null>(null);
+  const [reservaEditando, setReservaEditando] = useState<Reserva | null>(null);
 
   useEffect(() => {
     const q = query(
@@ -41,7 +46,25 @@ export const SolicitudesPanel = () => {
       return;
     }
     if (!usuario) return;
-    await aprobar(reserva.id, usuario.uid, asignacion.turno, asignacion.cancha);
+    setAsignandoId(reserva.id);
+    try {
+      await aprobar(reserva.id, usuario.uid, asignacion.turno, asignacion.cancha);
+    } catch (err) {
+      console.error('Error al asignar:', err);
+    } finally {
+      setAsignandoId(null);
+    }
+  };
+
+  const handleRechazar = async (id: string) => {
+    setRechazandoId(id);
+    try {
+      await cancelar(id);
+    } catch (err) {
+      console.error('Error al rechazar:', err);
+    } finally {
+      setRechazandoId(null);
+    }
   };
 
   const updateAsignacion = (reservaId: string, field: 'turno' | 'cancha', value: Turno | number) => {
@@ -72,12 +95,12 @@ export const SolicitudesPanel = () => {
           <div className="mb-2 flex items-center justify-between">
             <Badge color="yellow">Solicitado</Badge>
             <span className="text-xs text-gray-500">
-              {r.fecha}
+              {formatoFechaCompleto(r.fecha)}
             </span>
           </div>
           <p className="font-medium text-gray-900">{r.capitanNombre}</p>
           <p className="text-sm text-gray-600">
-            vs {r.equipoRival} · Cat. {r.categoria}
+            vs {r.equipoRival} · {r.capitanEquipo}
           </p>
           <p className="text-sm text-blue-600">
             Prefiere: {getTurnoPreferenciaLabel(r.turnoPreferencia)}
@@ -108,15 +131,25 @@ export const SolicitudesPanel = () => {
           </div>
 
           <div className="mt-3 flex gap-2">
-            <Button size="sm" onClick={() => handleAsignar(r)}>
-              Asignar
+            <Button size="sm" onClick={() => handleAsignar(r)} disabled={asignandoId === r.id}>
+              {asignandoId === r.id ? 'Asignando...' : 'Asignar'}
             </Button>
-            <Button variant="danger" size="sm" onClick={() => cancelar(r.id)}>
-              Rechazar
+            <Button variant="secondary" size="sm" onClick={() => setReservaEditando(r)}>
+              Editar
+            </Button>
+            <Button variant="danger" size="sm" onClick={() => handleRechazar(r.id)} disabled={rechazandoId === r.id}>
+              {rechazandoId === r.id ? 'Rechazando...' : 'Rechazar'}
             </Button>
           </div>
         </div>
       ))}
+
+      {reservaEditando && (
+        <EditarReservaModal
+          reserva={reservaEditando}
+          onClose={() => setReservaEditando(null)}
+        />
+      )}
     </div>
   );
 };

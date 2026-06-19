@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { db } from '../../firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import type { Categoria, PreferenciaTurno } from '../../lib/tipos';
+import type { PreferenciaTurno } from '../../lib/tipos';
 
 interface SolicitudDiaModalProps {
   fecha: string;
@@ -11,11 +11,13 @@ interface SolicitudDiaModalProps {
 
 export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) => {
   const { usuario } = useAuth();
-  const [categoria, setCategoria] = useState<Categoria>('A');
   const [turnoPreferencia, setTurnoPreferencia] = useState<PreferenciaTurno>('cualquiera');
   const [equipoRival, setEquipoRival] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const capitanNombre = usuario?.displayName || usuario?.username || '';
+  const capitanEquipo = usuario?.equipo || '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,9 +31,9 @@ export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) =>
         turnoPreferencia,
         cancha: null,
         estado: 'solicitado',
-        categoria,
+        capitanEquipo,
         capitanUid: usuario.uid,
-        capitanNombre: usuario.displayName || usuario.email,
+        capitanNombre,
         equipoRival,
         observaciones,
         solicitadoEn: serverTimestamp(),
@@ -59,20 +61,12 @@ export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) =>
 
           <div>
             <label className="block text-sm font-medium mb-1">Capitán</label>
-            <div className="text-gray-700">{usuario?.displayName || usuario?.email}</div>
+            <div className="text-gray-700">{capitanNombre}</div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Categoría</label>
-            <select
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value as Categoria)}
-              className="w-full border rounded px-3 py-2"
-            >
-              <option value="A">A</option>
-              <option value="B">B</option>
-              <option value="C">C</option>
-            </select>
+            <label className="block text-sm font-medium mb-1">Equipo</label>
+            <div className="text-gray-700">{capitanEquipo || 'Sin equipo asignado'}</div>
           </div>
 
           <div>

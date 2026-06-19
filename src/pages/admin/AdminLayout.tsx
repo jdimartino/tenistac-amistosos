@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { AppShell } from '../../components/layout/AppShell';
 
 const tabs = [
+  { to: '/', label: '← Canchas' },
   { to: '/admin/usuarios', label: 'Usuarios' },
   { to: '/admin/solicitudes', label: 'Solicitudes' },
   { to: '/admin/bloqueos', label: 'Bloqueos' },

@@ -4,18 +4,21 @@ import { db } from '../../firebase/config';
 import { useAuth } from '../../hooks/useAuth';
 import { DiaCard } from './DiaCard';
 import { SolicitudDiaModal } from './SolicitudDiaModal';
-import type { Reserva, Bloqueo } from '../../lib/tipos';
+import type { Reserva, SlotBloqueado } from '../../lib/tipos';
 
 interface CalendarioCapitanProps {
   fechaInicio: string;
   fechaFin: string;
 }
 
+const TOTAL_SLOTS_POR_DIA = 10; // 5 canchas × 2 turnos
+
 export const CalendarioCapitan = ({ fechaInicio, fechaFin }: CalendarioCapitanProps) => {
   const { usuario } = useAuth();
   const [reservas, setReservas] = useState<Reserva[]>([]);
-  const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
+  const [slotsBloqueados, setSlotsBloqueados] = useState<SlotBloqueado[]>([]);
   const [diaSeleccionado, setDiaSeleccionado] = useState<string | null>(null);
+  const [cancelandoId, setCancelandoId] = useState<string | null>(null);
 
   // Escuchar reservas
   useState(() => {
@@ -30,26 +33,29 @@ export const CalendarioCapitan = ({ fechaInicio, fechaFin }: CalendarioCapitanPr
     return unsubscribe;
   });
 
-  // Escuchar bloqueos
+  // Escuchar slots bloqueados (a nivel cancha)
   useState(() => {
     const q = query(
-      collection(db, 'bloqueos'),
-      where('fechaInicio', '<=', fechaFin),
-      where('fechaFin', '>=', fechaInicio)
+      collection(db, 'slotsBloqueados'),
+      where('fecha', '>=', fechaInicio),
+      where('fecha', '<=', fechaFin)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setBloqueos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bloqueo)));
+      setSlotsBloqueados(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SlotBloqueado)));
     });
     return unsubscribe;
   });
 
   const handleCancelar = async (reservaId: string) => {
     if (!confirm('¿Estás seguro de cancelar esta solicitud?')) return;
+    setCancelandoId(reservaId);
     try {
       await deleteDoc(doc(db, 'reservas', reservaId));
     } catch (error) {
       console.error('Error al cancelar:', error);
       alert('Error al cancelar la solicitud');
+    } finally {
+      setCancelandoId(null);
     }
   };
 
@@ -61,8 +67,8 @@ export const CalendarioCapitan = ({ fechaInicio, fechaFin }: CalendarioCapitanPr
     fechas.push(d.toISOString().split('T')[0]);
   }
 
-  const estaBloqueado = (fecha: string) => {
-    return bloqueos.some(b => fecha >= b.fechaInicio && fecha <= b.fechaFin);
+  const getSlotsBloqueadosDia = (fecha: string): number => {
+    return slotsBloqueados.filter(s => s.fecha === fecha).length;
   };
 
   const getReservasDelDia = (fecha: string) => {
@@ -79,10 +85,12 @@ export const CalendarioCapitan = ({ fechaInicio, fechaFin }: CalendarioCapitanPr
             key={fecha}
             fecha={fecha}
             reservas={getReservasDelDia(fecha)}
-            bloqueado={estaBloqueado(fecha)}
+            slotsBloqueadosCount={getSlotsBloqueadosDia(fecha)}
+            totalSlots={TOTAL_SLOTS_POR_DIA}
             onSolicitar={() => setDiaSeleccionado(fecha)}
             onCancelar={handleCancelar}
             usuarioUid={usuario.uid}
+            cancelandoId={cancelandoId}
           />
         ))}
       </div>
