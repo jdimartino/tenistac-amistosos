@@ -4,6 +4,7 @@ import { useAuth } from './hooks/useAuth';
 import { Login } from './pages/Login';
 import { Calendario } from './pages/Calendario';
 import { Spinner } from './components/ui/Spinner';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })));
 const UsuariosPanel = lazy(() => import('./pages/admin/UsuariosPanel').then((m) => ({ default: m.UsuariosPanel })));
@@ -39,14 +40,15 @@ const AdminRoute = ({ children }: { children: ReactNode }) => {
 function App() {
   return (
     <BrowserRouter>
-      <Suspense
-        fallback={
-          <div className="flex h-screen items-center justify-center">
-            <Spinner className="h-10 w-10 text-green-600" />
-          </div>
-        }
-      >
-        <Routes>
+      <ErrorBoundary>
+        <Suspense
+          fallback={
+            <div className="flex h-screen items-center justify-center">
+              <Spinner className="h-10 w-10 text-green-600" />
+            </div>
+          }
+        >
+          <Routes>
           <Route path="/login" element={<Login />} />
           <Route
             path="/"
@@ -72,6 +74,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

@@ -56,6 +56,7 @@ export const DiaCard = ({ fecha, reservas, slotsBloqueadosCount, totalSlots, onS
           {puedeSolicitar && (
             <button
               onClick={onSolicitar}
+              aria-label={`Solicitar día ${fechaCorta}`}
               className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
             >
               Solicitar
@@ -65,6 +66,7 @@ export const DiaCard = ({ fecha, reservas, slotsBloqueadosCount, totalSlots, onS
             <button
               onClick={() => onCancelar(misSolicitudes[0].id)}
               disabled={cancelandoId === misSolicitudes[0].id}
+              aria-label={`Cancelar solicitud del ${fechaCorta}`}
               className={`text-xs px-3 py-1 rounded mt-1 ${
                 cancelandoId === misSolicitudes[0].id
                   ? 'bg-gray-400 text-white cursor-not-allowed'

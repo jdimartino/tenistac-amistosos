@@ -21,6 +21,11 @@ export const SlotCancha = ({ slot, onEditar }: SlotCanchaProps) => {
     <button
       type="button"
       onClick={esClickeable ? onEditar : undefined}
+      aria-label={
+        slot.reserva
+          ? `Reservado por ${slot.reserva.capitanNombre} - Cancha ${slot.cancha}`
+          : `Cancha ${slot.cancha} - ${estadoLabel[slot.estado]}`
+      }
       className={twMerge(
         'flex w-full flex-col items-center justify-center rounded-xl border p-2 text-center',
         'min-h-[4.5rem] sm:min-h-[5.5rem]',
