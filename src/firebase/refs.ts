@@ -12,3 +12,6 @@ export const bloqueoDoc = (id: string) => doc(db, 'bloqueos', id);
 
 export const slotsBloqueadosRef = collection(db, 'slotsBloqueados');
 export const slotBloqueadoDoc = (id: string) => doc(db, 'slotsBloqueados', id);
+
+export const mensajesRef = collection(db, 'mensajes');
+export const mensajeDoc = (id: string) => doc(db, 'mensajes', id);

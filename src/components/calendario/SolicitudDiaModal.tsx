@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { db } from '../../firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import type { PreferenciaTurno } from '../../lib/tipos';
+import type { PreferenciaTurno, Motivo } from '../../lib/tipos';
 
 interface SolicitudDiaModalProps {
   fecha: string;
@@ -12,6 +12,7 @@ interface SolicitudDiaModalProps {
 export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) => {
   const { usuario } = useAuth();
   const [turnoPreferencia, setTurnoPreferencia] = useState<PreferenciaTurno>('cualquiera');
+  const [motivo, setMotivo] = useState<Motivo>('amistoso');
   const [equipoRival, setEquipoRival] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,12 +30,13 @@ export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) =>
         fecha,
         turno: null,
         turnoPreferencia,
-        cancha: null,
+        canchas: [],
         estado: 'solicitado',
         capitanEquipo,
         capitanUid: usuario.uid,
         capitanNombre,
         equipoRival,
+        motivo,
         observaciones,
         solicitadoEn: serverTimestamp(),
         aprobadoEn: null,
@@ -79,6 +81,20 @@ export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) =>
               <option value="cualquiera">Cualquiera Disponible</option>
               <option value="maniana">Mañana</option>
               <option value="tarde">Tarde</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Motivo</label>
+            <select
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value as Motivo)}
+              className="w-full border rounded px-3 py-2"
+            >
+              <option value="amistoso">Amistoso</option>
+              <option value="entrenamiento">Entrenamiento</option>
+              <option value="clases">Clases</option>
+              <option value="torneo">Torneo</option>
             </select>
           </div>
 

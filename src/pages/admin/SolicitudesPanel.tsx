@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { db } from '../../firebase/config';
-import { useAuth } from '../../hooks/useAuth';
-import { useReservas } from '../../hooks/useReservas';
+import { functions } from '../../firebase/functions';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
@@ -20,12 +20,12 @@ const CANCHAS = [1, 2, 3, 4, 5];
 export const SolicitudesPanel = () => {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
-  const { usuario } = useAuth();
-  const { aprobar, cancelar } = useReservas();
-  const [asignaciones, setAsignaciones] = useState<Record<string, { turno: Turno; cancha: number }>>({});
+  const [asignaciones, setAsignaciones] = useState<Record<string, { turno: Turno; canchas: number[] }>>({});
   const [asignandoId, setAsignandoId] = useState<string | null>(null);
   const [rechazandoId, setRechazandoId] = useState<string | null>(null);
   const [reservaEditando, setReservaEditando] = useState<Reserva | null>(null);
+  const [reservaRechazando, setReservaRechazando] = useState<Reserva | null>(null);
+  const [motivoRechazo, setMotivoRechazo] = useState('');
 
   useEffect(() => {
     const q = query(
@@ -41,14 +41,14 @@ export const SolicitudesPanel = () => {
 
   const handleAsignar = async (reserva: Reserva) => {
     const asignacion = asignaciones[reserva.id];
-    if (!asignacion) {
-      alert('Selecciona turno y cancha antes de asignar');
+    if (!asignacion || asignacion.canchas.length === 0) {
+      alert('Selecciona turno y al menos una cancha antes de asignar');
       return;
     }
-    if (!usuario) return;
     setAsignandoId(reserva.id);
     try {
-      await aprobar(reserva.id, usuario.uid, asignacion.turno, asignacion.cancha);
+      const aprobarFn = httpsCallable(functions, 'aprobarReserva');
+      await aprobarFn({ reservaId: reserva.id, turno: asignacion.turno, canchas: asignacion.canchas });
     } catch (err) {
       console.error('Error al asignar:', err);
     } finally {
@@ -56,25 +56,48 @@ export const SolicitudesPanel = () => {
     }
   };
 
-  const handleRechazar = async (id: string) => {
-    setRechazandoId(id);
+  const handleRechazar = async () => {
+    if (!reservaRechazando || !motivoRechazo.trim()) return;
+    setRechazandoId(reservaRechazando.id);
     try {
-      await cancelar(id);
+      const rechazarFn = httpsCallable(functions, 'rechazarReserva');
+      await rechazarFn({ reservaId: reservaRechazando.id, motivo: motivoRechazo.trim() });
+      setReservaRechazando(null);
+      setMotivoRechazo('');
     } catch (err) {
       console.error('Error al rechazar:', err);
+      alert('Error al rechazar la solicitud');
     } finally {
       setRechazandoId(null);
     }
   };
 
-  const updateAsignacion = (reservaId: string, field: 'turno' | 'cancha', value: Turno | number) => {
+  const updateAsignacionTurno = (reservaId: string, turno: Turno) => {
     setAsignaciones(prev => ({
       ...prev,
       [reservaId]: {
         ...prev[reservaId],
-        [field]: value,
+        turno,
+        canchas: prev[reservaId]?.canchas || [],
       },
     }));
+  };
+
+  const toggleCancha = (reservaId: string, cancha: number) => {
+    setAsignaciones(prev => {
+      const current = prev[reservaId]?.canchas || [];
+      const newCanchas = current.includes(cancha)
+        ? current.filter(c => c !== cancha)
+        : [...current, cancha];
+      return {
+        ...prev,
+        [reservaId]: {
+          ...prev[reservaId],
+          turno: prev[reservaId]?.turno || 'maniana',
+          canchas: newCanchas,
+        },
+      };
+    });
   };
 
   const getTurnoPreferenciaLabel = (turno: string | null | undefined) => {
@@ -105,29 +128,40 @@ export const SolicitudesPanel = () => {
           <p className="text-sm text-blue-600">
             Prefiere: {getTurnoPreferenciaLabel(r.turnoPreferencia)}
           </p>
+          <p className="text-sm text-gray-500">
+            Motivo: {r.motivo === 'amistoso' ? 'Amistoso' : r.motivo === 'entrenamiento' ? 'Entrenamiento' : r.motivo === 'clases' ? 'Clases' : r.motivo === 'torneo' ? 'Torneo' : r.motivo}
+          </p>
           {r.observaciones && <p className="mt-1 text-sm text-gray-500">{r.observaciones}</p>}
           
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-3 space-y-2">
             <select
               value={asignaciones[r.id]?.turno || ''}
-              onChange={(e) => updateAsignacion(r.id, 'turno', e.target.value as Turno)}
-              className="rounded border border-gray-300 px-2 py-1 text-sm"
+              onChange={(e) => updateAsignacionTurno(r.id, e.target.value as Turno)}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
             >
               <option value="">Turno...</option>
               {TURNOS.map(t => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
-            <select
-              value={asignaciones[r.id]?.cancha || ''}
-              onChange={(e) => updateAsignacion(r.id, 'cancha', Number(e.target.value))}
-              className="rounded border border-gray-300 px-2 py-1 text-sm"
-            >
-              <option value="">Cancha...</option>
-              {CANCHAS.map(c => (
-                <option key={c} value={c}>Cancha {c}</option>
-              ))}
-            </select>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Canchas</label>
+              <div className="flex flex-wrap gap-2">
+                {CANCHAS.map(c => (
+                  <label key={c} className={`flex items-center gap-1 rounded border px-2 py-1 text-sm cursor-pointer ${
+                    asignaciones[r.id]?.canchas?.includes(c) ? 'bg-green-100 border-green-500 text-green-800' : 'border-gray-300 hover:bg-gray-50'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={asignaciones[r.id]?.canchas?.includes(c) || false}
+                      onChange={() => toggleCancha(r.id, c)}
+                      className="rounded"
+                    />
+                    C{c}
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="mt-3 flex gap-2">
@@ -137,8 +171,8 @@ export const SolicitudesPanel = () => {
             <Button variant="secondary" size="sm" onClick={() => setReservaEditando(r)}>
               Editar
             </Button>
-            <Button variant="danger" size="sm" onClick={() => handleRechazar(r.id)} disabled={rechazandoId === r.id}>
-              {rechazandoId === r.id ? 'Rechazando...' : 'Rechazar'}
+            <Button variant="danger" size="sm" onClick={() => { setReservaRechazando(r); setMotivoRechazo(''); }}>
+              Rechazar
             </Button>
           </div>
         </div>
@@ -149,6 +183,48 @@ export const SolicitudesPanel = () => {
           reserva={reservaEditando}
           onClose={() => setReservaEditando(null)}
         />
+      )}
+
+      {reservaRechazando && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold mb-4 text-red-600">Rechazar solicitud</h2>
+            <div className="mb-4 space-y-2 rounded-lg bg-gray-50 p-3 text-sm">
+              <p><strong>Capitán:</strong> {reservaRechazando.capitanNombre}</p>
+              <p><strong>Equipo:</strong> {reservaRechazando.capitanEquipo}</p>
+              <p><strong>Rival:</strong> {reservaRechazando.equipoRival}</p>
+              <p><strong>Fecha:</strong> {formatoFechaCompleto(reservaRechazando.fecha)}</p>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Motivo del rechazo *</label>
+              <textarea
+                value={motivoRechazo}
+                onChange={(e) => setMotivoRechazo(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+                rows={3}
+                placeholder="Indica el motivo del rechazo..."
+                required
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setReservaRechazando(null); setMotivoRechazo(''); }}
+                className="flex-1 px-4 py-2 border rounded hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleRechazar}
+                disabled={!motivoRechazo.trim() || rechazandoId === reservaRechazando.id}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-gray-400"
+              >
+                {rechazandoId === reservaRechazando.id ? 'Rechazando...' : 'Confirmar rechazo'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

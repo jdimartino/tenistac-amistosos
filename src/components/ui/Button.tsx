@@ -3,7 +3,7 @@ import { twMerge } from 'tailwind-merge';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
 }
 
 export const Button = ({ variant = 'primary', size = 'md', className, ...props }: ButtonProps) => {
@@ -15,6 +15,7 @@ export const Button = ({ variant = 'primary', size = 'md', className, ...props }
     ghost: 'bg-transparent text-gray-700 hover:bg-gray-100',
   };
   const sizes = {
+    xs: 'px-2 py-1.5 text-xs min-h-7',
     sm: 'px-3 py-2 text-sm min-h-10',
     md: 'px-4 py-3 text-base min-h-12',
     lg: 'px-6 py-4 text-lg min-h-14',

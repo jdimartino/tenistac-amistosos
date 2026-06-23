@@ -3,21 +3,21 @@ import { AppShell } from '../components/layout/AppShell';
 import { CalendarioGrid } from '../components/calendario/CalendarioGrid';
 import { CalendarioCapitan } from '../components/calendario/CalendarioCapitan';
 import { Button } from '../components/ui/Button';
-import { hoy, sumarDias, inicioSemana, formatoFecha } from '../lib/fecha';
+import { hoy, sumarDias, formatoFecha } from '../lib/fecha';
 import { useAuth } from '../hooks/useAuth';
 
 const DIAS_POR_VISTA = 15;
 
 export const Calendario = () => {
   const { usuario } = useAuth();
-  const [inicio, setInicio] = useState(inicioSemana(hoy()));
+  const [inicio, setInicio] = useState(hoy());
 
   const fin = sumarDias(inicio, DIAS_POR_VISTA - 1);
   const esAdmin = usuario?.role === 'admin';
 
   const avanzar = () => setInicio((prev) => sumarDias(prev, DIAS_POR_VISTA));
   const retroceder = () => setInicio((prev) => sumarDias(prev, -DIAS_POR_VISTA));
-  const resetear = () => setInicio(inicioSemana(hoy()));
+  const resetear = () => setInicio(hoy());
 
   return (
     <AppShell>

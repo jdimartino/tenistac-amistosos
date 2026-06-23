@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { onSnapshot, query, orderBy } from 'firebase/firestore';
+import { onSnapshot, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { bloqueosRef } from '../firebase/refs';
+import { bloqueosRef, slotBloqueadoDoc } from '../firebase/refs';
 import { functions } from '../firebase/functions';
 import type { Bloqueo, BloqueoInput } from '../lib/tipos';
+import { slotId } from '../lib/slot';
+import type { Turno } from '../lib/tipos';
 
 const createBloqueoFn = httpsCallable<BloqueoInput, { id: string }>(functions, 'createBloqueo');
 const deleteBloqueoFn = httpsCallable<{ id: string }, void>(functions, 'deleteBloqueo');
@@ -33,5 +35,10 @@ export const useBloqueos = () => {
     await updateBloqueoFn({ id, ...input });
   }, []);
 
-  return { bloqueos, loading, create, remove, update };
+  const desbloquearSlot = useCallback(async (fecha: string, turno: Turno, cancha: number) => {
+    const id = slotId(fecha, turno, cancha);
+    await deleteDoc(slotBloqueadoDoc(id));
+  }, []);
+
+  return { bloqueos, loading, create, remove, update, desbloquearSlot };
 };

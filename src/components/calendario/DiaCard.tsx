@@ -11,83 +11,108 @@ interface DiaCardProps {
   cancelandoId?: string | null;
 }
 
+type Estado = 'disponible' | 'solicitado' | 'reservado' | 'parcial_reservado' | 'parcial' | 'bloqueado';
+
 export const DiaCard = ({ fecha, reservas, slotsBloqueadosCount, totalSlots, onSolicitar, onCancelar, usuarioUid, cancelandoId }: DiaCardProps) => {
-  const getEstado = (): 'disponible' | 'solicitado' | 'reservado' | 'parcial' | 'bloqueado' => {
+  const getEstado = (): Estado => {
     if (slotsBloqueadosCount >= totalSlots) return 'bloqueado';
-    if (reservas.some(r => r.estado === 'reservado')) return 'reservado';
-    if (reservas.some(r => r.estado === 'solicitado')) return 'solicitado';
+
+    const reservadosCount = reservas.filter(r => r.estado === 'reservado').length;
+    const solicitadosCount = reservas.filter(r => r.estado === 'solicitado').length;
+
+    if (reservadosCount >= totalSlots) return 'reservado';
+    if (reservadosCount > 0) return 'parcial_reservado';
+    if (solicitadosCount > 0) return 'solicitado';
     if (slotsBloqueadosCount > 0) return 'parcial';
     return 'disponible';
   };
 
   const estado = getEstado();
-  const reservaReservada = reservas.find(r => r.estado === 'reservado');
+  const reservasReservadas = reservas.filter(r => r.estado === 'reservado');
   const solicitudes = reservas.filter(r => r.estado === 'solicitado');
   const misSolicitudes = solicitudes.filter(r => r.capitanUid === usuarioUid);
 
-  const colores = {
+  const colores: Record<Estado, string> = {
     disponible: 'bg-green-100 border-green-500 hover:bg-green-200',
     solicitado: 'bg-yellow-100 border-yellow-500',
     reservado: 'bg-gray-300 border-gray-500',
+    parcial_reservado: 'bg-gray-200 border-gray-400',
     parcial: 'bg-orange-100 border-orange-400 hover:bg-orange-200',
     bloqueado: 'bg-red-100 border-red-500',
   };
 
   const getTurnoLabel = (turno: string | null) => {
-    if (turno === 'maniana') return 'Mañana';
-    if (turno === 'tarde') return 'Tarde';
+    if (turno === 'maniana') return 'Turno Mañana';
+    if (turno === 'tarde') return 'Turno Tarde';
     return 'Cualquiera';
   };
 
   const [, mes, dia] = fecha.split('-');
   const fechaCorta = `${dia}/${mes}`;
+  const diaCompleto = new Date(`${fecha}T12:00:00`).toLocaleDateString('es-AR', { weekday: 'long' });
+  const diaSemana = new Date(`${fecha}T12:00:00`).getDay();
+  const headerFinde = diaSemana === 0 ? 'bg-sky-100 rounded-t-md -mx-3 -mt-3 px-3 pt-3 pb-1' : diaSemana === 6 ? 'bg-sky-50 rounded-t-md -mx-3 -mt-3 px-3 pt-3 pb-1' : '';
 
-  // Mostrar botón de solicitar si NO está reservado ni completamente bloqueado
   const puedeSolicitar = estado !== 'reservado' && estado !== 'bloqueado';
 
   return (
-    <div className={`rounded-lg border-2 p-4 ${colores[estado as keyof typeof colores]}`}>
-      <div className="flex justify-between items-start mb-2">
-        <div>
-          <div className="text-sm font-semibold text-gray-700">{fechaCorta}</div>
-          <div className="text-xs text-gray-600 capitalize">{new Date(fecha).toLocaleDateString('es-AR', { weekday: 'short' })}</div>
-        </div>
-        <div className="text-right">
-          {puedeSolicitar && (
-            <button
-              onClick={onSolicitar}
-              aria-label={`Solicitar día ${fechaCorta}`}
-              className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
-            >
-              Solicitar
-            </button>
-          )}
-          {misSolicitudes.length > 0 && (
-            <button
-              onClick={() => onCancelar(misSolicitudes[0].id)}
-              disabled={cancelandoId === misSolicitudes[0].id}
-              aria-label={`Cancelar solicitud del ${fechaCorta}`}
-              className={`text-xs px-3 py-1 rounded mt-1 ${
-                cancelandoId === misSolicitudes[0].id
-                  ? 'bg-gray-400 text-white cursor-not-allowed'
-                  : 'bg-yellow-600 text-white hover:bg-yellow-700'
-              }`}
-            >
-              {cancelandoId === misSolicitudes[0].id ? 'Cancelando...' : 'Cancelar'}
-            </button>
-          )}
+    <div className={`rounded-lg border-2 p-3 ${colores[estado]}`}>
+      <div className={`mb-2 ${headerFinde}`}>
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="text-sm font-semibold text-gray-700 capitalize">{diaCompleto}</div>
+            <div className="text-xs text-gray-600">{fechaCorta}</div>
+          </div>
+          <div className="text-right">
+            {puedeSolicitar && (
+              <button
+                onClick={onSolicitar}
+                aria-label={`Solicitar día ${fechaCorta}`}
+                className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+              >
+                Solicitar
+              </button>
+            )}
+            {misSolicitudes.length > 0 && (
+              <button
+                onClick={() => onCancelar(misSolicitudes[0].id)}
+                disabled={cancelandoId === misSolicitudes[0].id}
+                aria-label={`Cancelar solicitud del ${fechaCorta}`}
+                className={`text-xs px-3 py-1 rounded mt-1 ${
+                  cancelandoId === misSolicitudes[0].id
+                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                    : 'bg-yellow-600 text-white hover:bg-yellow-700'
+                }`}
+              >
+                {cancelandoId === misSolicitudes[0].id ? 'Cancelando...' : 'Cancelar'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {estado === 'reservado' && reservaReservada && (
+      {estado === 'reservado' && reservasReservadas.length > 0 && (
         <div className="text-xs text-gray-700 space-y-1">
           <div className="font-semibold">Reservado</div>
-          <div>Cancha {reservaReservada.cancha}</div>
-          <div>{reservaReservada.turno === 'maniana' ? 'Mañana' : 'Tarde'}</div>
-          <div className="text-gray-600">
-            {reservaReservada.capitanNombre}
-            {reservaReservada.capitanEquipo && ` (${reservaReservada.capitanEquipo})`}
-          </div>
+          {reservasReservadas.map((r) => (
+            <div key={r.id}>
+              <div>Canchas {r.canchas?.join(', ') || '?'} - {r.turno === 'maniana' ? 'Turno Mañana' : 'Turno Tarde'}</div>
+              <div className="text-gray-600 font-medium">{r.capitanNombre}</div>
+              {r.capitanEquipo && <div className="text-gray-500">({r.capitanEquipo})</div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {estado === 'parcial_reservado' && (
+        <div className="text-xs text-gray-700 space-y-1">
+          <div className="font-semibold">Parcialmente reservado</div>
+          {reservasReservadas.map((r) => (
+            <div key={r.id}>
+              <div>Canchas {r.canchas?.join(', ') || '?'} - {r.turno === 'maniana' ? 'Turno Mañana' : 'Turno Tarde'} - {r.capitanNombre}</div>
+              {r.capitanEquipo && <div className="text-gray-500">({r.capitanEquipo})</div>}
+            </div>
+          ))}
         </div>
       )}
 

@@ -3,13 +3,18 @@ import * as admin from 'firebase-admin';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
+import { defineSecret } from 'firebase-functions/params';
+import { BrevoClient } from '@getbrevo/brevo';
 
 initializeApp();
 const db = getFirestore();
 const auth = getAuth();
 
 setGlobalOptions({ region: 'us-central1' });
+
+const brevoApiKey = defineSecret('BREVO_API_KEY');
 
 const CANCHAS = [1, 2, 3, 4, 5];
 
@@ -342,4 +347,376 @@ export const backfillBloqueos = onCall<void, Promise<{ message: string }>>(async
 
   return { message: `Backfill completado: ${count} bloqueo(s) procesado(s).` };
 });
+
+// Email notification when a new message is created in Firestore
+export const sendEmailNotification = onDocumentCreated(
+  {
+    document: 'mensajes/{mensajeId}',
+    secrets: [brevoApiKey],
+  },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+
+    const { paraUid, deNombre, deRol, asunto, cuerpo, threadId } = data as {
+      paraUid: string;
+      deNombre: string;
+      deRol: string;
+      asunto: string;
+      cuerpo: string;
+      threadId?: string;
+    };
+
+    // Build recipient email list
+    const recipientEmails: string[] = [];
+
+    if (paraUid === 'admin') {
+      const adminsSnap = await db.collection('usuarios').where('role', '==', 'admin').where('activo', '==', true).get();
+      for (const doc of adminsSnap.docs) {
+        const email = doc.data().email;
+        if (email && typeof email === 'string' && email.trim()) recipientEmails.push(email);
+      }
+    } else {
+      const userSnap = await db.collection('usuarios').doc(paraUid).get();
+      if (userSnap.exists) {
+        const email = userSnap.data()?.email;
+        if (email && typeof email === 'string' && email.trim()) recipientEmails.push(email);
+      }
+    }
+
+    if (recipientEmails.length === 0) {
+      console.log('No recipients with email found, skipping notification.');
+      return;
+    }
+
+    // Initialize Brevo client
+    const client = new BrevoClient({ apiKey: brevoApiKey.value() });
+
+    const rolLabel = deRol === 'admin' ? 'Administrador' : deRol === 'capitan' ? 'Capitán' : 'Sub-Capitán';
+
+    try {
+      await client.transactionalEmails.sendTransacEmail({
+        sender: { name: 'Club Táchira', email: 'notificaciones@tenistac.com' },
+        to: recipientEmails.map((email) => ({ email })),
+        subject: `[TenisTac] Nuevo mensaje de ${deNombre}`,
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #16a34a;">Nuevo mensaje en TenisTac</h2>
+            <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+              <p><strong>De:</strong> ${deNombre} (${rolLabel})</p>
+              <p><strong>Asunto:</strong> ${asunto}</p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+              <p style="white-space: pre-wrap;">${cuerpo}</p>
+            </div>
+            <a href="https://canchas.tenistac.com/mensajes/${threadId || ''}"
+               style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 8px;">
+              Ver mensaje en TenisTac
+            </a>
+            <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
+              Este es un mensaje automático de Club Táchira Solicitud de Canchas.
+            </p>
+          </div>
+        `,
+      });
+      console.log(`Email notification sent to ${recipientEmails.join(', ')}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Error sending email notification:', errorMessage);
+    }
+  }
+);
+
+// Email notification when a reservation request is created
+export const onReservaSolicitada = onDocumentCreated(
+  {
+    document: 'reservas/{reservaId}',
+    secrets: [brevoApiKey],
+  },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data || data.estado !== 'solicitado') return;
+
+    const { capitanNombre, capitanEquipo, equipoRival, fecha, turnoPreferencia, motivo, observaciones } = data as {
+      capitanNombre: string;
+      capitanEquipo: string;
+      equipoRival: string;
+      fecha: string;
+      turnoPreferencia: string;
+      motivo?: string;
+      observaciones?: string;
+    };
+
+    // Get all active admins with email
+    const adminsSnap = await db.collection('usuarios').where('role', '==', 'admin').where('activo', '==', true).get();
+    const recipientEmails: string[] = [];
+    for (const doc of adminsSnap.docs) {
+      const email = doc.data().email;
+      if (email && typeof email === 'string' && email.trim()) recipientEmails.push(email);
+    }
+
+    if (recipientEmails.length === 0) {
+      console.log('No admin emails found, skipping notification.');
+      return;
+    }
+
+    const turnoLabel = turnoPreferencia === 'maniana' ? 'Mañana' : turnoPreferencia === 'tarde' ? 'Tarde' : 'Cualquiera';
+    const motivoLabel = motivo === 'amistoso' ? 'Amistoso' : motivo === 'entrenamiento' ? 'Entrenamiento' : motivo === 'clases' ? 'Clases' : motivo === 'torneo' ? 'Torneo' : motivo || '';
+
+    const client = new BrevoClient({ apiKey: brevoApiKey.value() });
+
+    try {
+      await client.transactionalEmails.sendTransacEmail({
+        sender: { name: 'Club Táchira', email: 'notificaciones@tenistac.com' },
+        to: recipientEmails.map((email) => ({ email })),
+        subject: `[TenisTac] Nueva solicitud de ${capitanNombre}`,
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #16a34a;">Nueva solicitud de cancha</h2>
+            <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+              <p><strong>Capitán:</strong> ${capitanNombre}</p>
+              <p><strong>Equipo:</strong> ${capitanEquipo}</p>
+              <p><strong>Rival:</strong> ${equipoRival}</p>
+              <p><strong>Fecha:</strong> ${fecha}</p>
+              <p><strong>Prefiere:</strong> ${turnoLabel}</p>
+              <p><strong>Motivo:</strong> ${motivoLabel}</p>
+              ${observaciones ? `<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;"><p><strong>Observaciones:</strong></p><p style="white-space: pre-wrap;">${observaciones}</p>` : ''}
+            </div>
+            <a href="https://canchas.tenistac.com/admin"
+               style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 8px;">
+              Ver solicitudes en TenisTac
+            </a>
+            <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
+              Este es un mensaje automático de Club Táchira Solicitud de Canchas.
+            </p>
+          </div>
+        `,
+      });
+      console.log(`Reservation request email sent to ${recipientEmails.join(', ')}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Error sending reservation request email:', errorMessage);
+    }
+  }
+);
+
+// Allow any authenticated user to change their own password
+export const changeOwnPassword = onCall<{ newPassword: string }, void>(
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    const { newPassword } = request.data;
+    if (!newPassword || newPassword.length < 6) {
+      throw new HttpsError('invalid-argument', 'La contraseña debe tener al menos 6 caracteres.');
+    }
+    await auth.updateUser(request.auth.uid, { password: newPassword });
+  }
+);
+
+// Reject a reservation request and notify captain + admins via email
+export const rechazarReserva = onCall<{ reservaId: string; motivo: string }, Promise<{ success: boolean }>>(
+  {
+    secrets: [brevoApiKey],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    await assertAdmin(request.auth.uid);
+
+    const { reservaId, motivo } = request.data;
+    if (!motivo || !motivo.trim()) {
+      throw new HttpsError('invalid-argument', 'El motivo del rechazo es obligatorio.');
+    }
+
+    // Get the reservation
+    const reservaSnap = await db.collection('reservas').doc(reservaId).get();
+    if (!reservaSnap.exists) {
+      throw new HttpsError('not-found', 'La solicitud no existe.');
+    }
+    const reserva = reservaSnap.data()!;
+
+    // Delete the reservation
+    await db.collection('reservas').doc(reservaId).delete();
+
+    // Get admin name
+    const adminSnap = await db.collection('usuarios').doc(request.auth.uid).get();
+    const adminName = adminSnap.data()?.displayName || adminSnap.data()?.username || 'Admin';
+
+    // Collect recipient emails: captain + all admins
+    const recipientEmails: string[] = [];
+
+    // Captain email
+    if (reserva.capitanUid) {
+      const captainSnap = await db.collection('usuarios').doc(reserva.capitanUid).get();
+      if (captainSnap.exists) {
+        const email = captainSnap.data()?.email;
+        if (email && typeof email === 'string' && email.trim()) recipientEmails.push(email);
+      }
+    }
+
+    // Admin emails
+    const adminsSnap = await db.collection('usuarios').where('role', '==', 'admin').where('activo', '==', true).get();
+    for (const doc of adminsSnap.docs) {
+      const email = doc.data().email;
+      if (email && typeof email === 'string' && email.trim() && !recipientEmails.includes(email)) {
+        recipientEmails.push(email);
+      }
+    }
+
+    if (recipientEmails.length === 0) {
+      console.log('No recipients with email found, skipping rejection notification.');
+      return { success: true };
+    }
+
+    const turnoLabel = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : 'Cualquiera';
+    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo || '';
+
+    const client = new BrevoClient({ apiKey: brevoApiKey.value() });
+
+    try {
+      await client.transactionalEmails.sendTransacEmail({
+        sender: { name: 'Club Táchira', email: 'notificaciones@tenistac.com' },
+        to: recipientEmails.map((email) => ({ email })),
+        subject: `[TenisTac] Solicitud rechazada - ${reserva.capitanNombre}`,
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #dc2626;">Solicitud de cancha rechazada</h2>
+            <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+              <p><strong>Capitán:</strong> ${reserva.capitanNombre}</p>
+              <p><strong>Equipo:</strong> ${reserva.capitanEquipo}</p>
+              <p><strong>Rival:</strong> ${reserva.equipoRival}</p>
+              <p><strong>Fecha:</strong> ${reserva.fecha}</p>
+              <p><strong>Prefiere:</strong> ${turnoLabel}</p>
+              <p><strong>Motivo original:</strong> ${motivoReservaLabel}</p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+              <p><strong>Motivo del rechazo:</strong></p>
+              <p style="white-space: pre-wrap; color: #dc2626;">${motivo}</p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+              <p><strong>Rechazado por:</strong> ${adminName}</p>
+            </div>
+            <a href="https://canchas.tenistac.com/admin"
+               style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 8px;">
+              Ver solicitudes en TenisTac
+            </a>
+            <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
+              Este es un mensaje automático de Club Táchira Solicitud de Canchas.
+            </p>
+          </div>
+        `,
+      });
+      console.log(`Rejection email sent to ${recipientEmails.join(', ')}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Error sending rejection email:', errorMessage);
+    }
+
+    return { success: true };
+  }
+);
+
+// Approve a reservation request and notify captain + admins via email
+export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas: number[] }, Promise<{ success: boolean }>>(
+  {
+    secrets: [brevoApiKey],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    await assertAdmin(request.auth.uid);
+
+    const { reservaId, turno, canchas } = request.data;
+
+    // Get the reservation
+    const reservaSnap = await db.collection('reservas').doc(reservaId).get();
+    if (!reservaSnap.exists) {
+      throw new HttpsError('not-found', 'La solicitud no existe.');
+    }
+    const reserva = reservaSnap.data()!;
+
+    // Get admin name
+    const adminSnap = await db.collection('usuarios').doc(request.auth.uid).get();
+    const adminName = adminSnap.data()?.displayName || adminSnap.data()?.username || 'Admin';
+
+    // Update reservation
+    await db.collection('reservas').doc(reservaId).update({
+      estado: 'reservado',
+      turno,
+      canchas,
+      aprobadoEn: Timestamp.now(),
+      aprobadoPor: request.auth.uid,
+    });
+
+    // Collect recipient emails: captain + all admins
+    const recipientEmails: string[] = [];
+
+    // Captain email
+    if (reserva.capitanUid) {
+      const captainSnap = await db.collection('usuarios').doc(reserva.capitanUid).get();
+      if (captainSnap.exists) {
+        const email = captainSnap.data()?.email;
+        if (email && typeof email === 'string' && email.trim()) recipientEmails.push(email);
+      }
+    }
+
+    // Admin emails
+    const adminsSnap = await db.collection('usuarios').where('role', '==', 'admin').where('activo', '==', true).get();
+    for (const doc of adminsSnap.docs) {
+      const email = doc.data().email;
+      if (email && typeof email === 'string' && email.trim() && !recipientEmails.includes(email)) {
+        recipientEmails.push(email);
+      }
+    }
+
+    if (recipientEmails.length === 0) {
+      console.log('No recipients with email found, skipping approval notification.');
+      return { success: true };
+    }
+
+    const turnoLabelReserva = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : 'Cualquiera';
+    const turnoLabelAsignado = turno === 'maniana' ? 'Mañana' : 'Tarde';
+    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo || '';
+
+    const client = new BrevoClient({ apiKey: brevoApiKey.value() });
+
+    try {
+      await client.transactionalEmails.sendTransacEmail({
+        sender: { name: 'Club Táchira', email: 'notificaciones@tenistac.com' },
+        to: recipientEmails.map((email) => ({ email })),
+        subject: `[TenisTac] Solicitud aprobada - ${reserva.capitanNombre}`,
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #16a34a;">Solicitud de cancha aprobada</h2>
+            <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+              <p><strong>Capitán:</strong> ${reserva.capitanNombre}</p>
+              <p><strong>Equipo:</strong> ${reserva.capitanEquipo}</p>
+              <p><strong>Rival:</strong> ${reserva.equipoRival}</p>
+              <p><strong>Fecha:</strong> ${reserva.fecha}</p>
+              <p><strong>Pedía:</strong> ${turnoLabelReserva}</p>
+              <p><strong>Asignado:</strong> Turno ${turnoLabelAsignado} · Canchas ${canchas.join(', ')}</p>
+              <p><strong>Motivo:</strong> ${motivoReservaLabel}</p>
+              ${reserva.observaciones ? `<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;"><p><strong>Observaciones:</strong></p><p style="white-space: pre-wrap;">${reserva.observaciones}</p>` : ''}
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+              <p><strong>Aprobado por:</strong> ${adminName}</p>
+            </div>
+            <a href="https://canchas.tenistac.com/admin"
+               style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 8px;">
+              Ver solicitudes en TenisTac
+            </a>
+            <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
+              Este es un mensaje automático de Club Táchira Solicitud de Canchas.
+            </p>
+          </div>
+        `,
+      });
+      console.log(`Approval email sent to ${recipientEmails.join(', ')}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Error sending approval email:', errorMessage);
+    }
+
+    return { success: true };
+  }
+);
 

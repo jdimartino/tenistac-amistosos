@@ -1,24 +1,71 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
-import { MensajeCard } from '../components/mensajes/MensajeCard';
-import { NuevoMensajeModal } from '../components/mensajes/NuevoMensajeModal';
+import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
+import { NuevoMensajeModal } from '../components/mensajes/NuevoMensajeModal';
 import { useBandeja, useMensajesActions } from '../hooks/useMensajes';
+import type { Mensaje } from '../lib/tipos';
+
+interface ThreadSummary {
+  threadId: string;
+  ultimo: Mensaje;
+  total: number;
+  respondidoAdmin: boolean;
+  noLeidos: number;
+}
+
+const agruparThreads = (mensajes: Mensaje[]): ThreadSummary[] => {
+  const grupos = new Map<string, Mensaje[]>();
+  for (const m of mensajes) {
+    const tid = m.threadId || m.id;
+    const arr = grupos.get(tid) || [];
+    arr.push(m);
+    grupos.set(tid, arr);
+  }
+  const res: ThreadSummary[] = [];
+  for (const [threadId, msgs] of grupos) {
+    msgs.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+    res.push({
+      threadId,
+      ultimo: msgs[0],
+      total: msgs.length,
+      respondidoAdmin: msgs.some((m) => m.deRol === 'admin'),
+      noLeidos: msgs.filter((m) => !m.leido).length,
+    });
+  }
+  res.sort((a, b) => (b.ultimo.createdAt?.getTime() || 0) - (a.ultimo.createdAt?.getTime() || 0));
+  return res;
+};
+
+const formatDate = (fecha: Date | undefined): string => {
+  if (!fecha) return '';
+  const d = fecha instanceof Date ? fecha : new Date(fecha);
+  return d.toLocaleString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export const Mensajes = () => {
+  const navigate = useNavigate();
   const { mensajes, loading } = useBandeja();
   const { marcarTodoLeido } = useMensajesActions();
   const [showNuevo, setShowNuevo] = useState(false);
   const [marcando, setMarcando] = useState(false);
 
-  const noLeidos = mensajes.filter((m) => !m.leido);
+  const threads = useMemo(() => agruparThreads(mensajes), [mensajes]);
+
+  const totalNoLeidos = threads.reduce((acc, t) => acc + t.noLeidos, 0);
 
   const handleMarcarTodo = async () => {
     setMarcando(true);
     try {
-      await marcarTodoLeido(noLeidos.map((m) => m.id));
+      const ids = mensajes.filter((m) => !m.leido).map((m) => m.id);
+      await marcarTodoLeido(ids);
     } catch (err) {
       console.error('Error al marcar todo:', err);
     } finally {
@@ -39,12 +86,12 @@ export const Mensajes = () => {
       <div className="mb-4 flex items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Mensajes</h2>
-          {noLeidos.length > 0 && (
-            <p className="text-xs text-gray-500">{noLeidos.length} sin leer</p>
+          {totalNoLeidos > 0 && (
+            <p className="text-xs text-gray-500">{totalNoLeidos} sin leer</p>
           )}
         </div>
         <div className="flex gap-2">
-          {noLeidos.length > 0 && (
+          {totalNoLeidos > 0 && (
             <Button
               variant="ghost"
               size="sm"
@@ -64,12 +111,44 @@ export const Mensajes = () => {
         <div className="flex justify-center py-8">
           <Spinner className="h-8 w-8 text-green-600" />
         </div>
-      ) : mensajes.length === 0 ? (
+      ) : threads.length === 0 ? (
         <p className="py-8 text-center text-gray-500">No hay mensajes.</p>
       ) : (
         <div className="space-y-2">
-          {mensajes.map((m) => (
-            <MensajeCard key={m.id} mensaje={m} />
+          {threads.map((t) => (
+            <button
+              key={t.threadId}
+              type="button"
+              onClick={() => navigate(`/mensajes/${t.threadId}`)}
+              className={`w-full rounded-xl border bg-white p-4 text-left shadow-sm transition-colors hover:bg-gray-50 ${
+                t.noLeidos > 0 ? 'border-green-300 bg-green-50/50' : 'border-gray-200'
+              }`}
+            >
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-900">
+                    {t.ultimo.asunto}
+                  </span>
+                  {t.noLeidos > 0 && (
+                    <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-600 px-1.5 text-[11px] font-bold text-white">
+                      {t.noLeidos}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-500">{formatDate(t.ultimo.createdAt)}</span>
+              </div>
+              <p className="line-clamp-2 text-sm text-gray-600">
+                {t.ultimo.cuerpo}
+              </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-gray-400">
+                  {t.ultimo.deNombre} &mdash; {t.total} mensaje{t.total !== 1 ? 's' : ''}
+                </span>
+                {t.respondidoAdmin && (
+                  <Badge color="green">Respondido</Badge>
+                )}
+              </div>
+            </button>
           ))}
         </div>
       )}

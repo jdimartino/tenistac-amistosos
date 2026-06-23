@@ -14,7 +14,7 @@ export const useReservas = () => {
     await setDoc(reservaDoc(id), {
       ...input,
       turno: null,
-      cancha: null,
+      canchas: [],
       estado: 'solicitado',
       capitanUid,
       capitanNombre,
@@ -28,12 +28,12 @@ export const useReservas = () => {
     id: string,
     adminUid: string,
     turno: Turno,
-    cancha: number
+    canchas: number[]
   ) => {
     await updateDoc(reservaDoc(id), {
       estado: 'reservado',
       turno,
-      cancha,
+      canchas,
       aprobadoEn: serverTimestamp(),
       aprobadoPor: adminUid,
     });
@@ -45,7 +45,7 @@ export const useReservas = () => {
 
   const editarReserva = useCallback(async (
     id: string,
-    data: Partial<ReservaInput> & { turno?: Turno | null; cancha?: number | null; capitanNombre?: string }
+    data: Partial<ReservaInput> & { turno?: Turno | null; canchas?: number[]; capitanNombre?: string }
   ) => {
     await updateDoc(reservaDoc(id), data);
   }, []);

@@ -10,6 +10,8 @@ const AdminLayout = lazy(() => import('./pages/admin/AdminLayout').then((m) => (
 const UsuariosPanel = lazy(() => import('./pages/admin/UsuariosPanel').then((m) => ({ default: m.UsuariosPanel })));
 const SolicitudesPanel = lazy(() => import('./pages/admin/SolicitudesPanel').then((m) => ({ default: m.SolicitudesPanel })));
 const BloqueosPanel = lazy(() => import('./pages/admin/BloqueosPanel').then((m) => ({ default: m.BloqueosPanel })));
+const Mensajes = lazy(() => import('./pages/Mensajes').then((m) => ({ default: m.Mensajes })));
+const MensajeDetalle = lazy(() => import('./pages/MensajeDetalle').then((m) => ({ default: m.MensajeDetalle })));
 
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const { firebaseUser, loading } = useAuth();
@@ -71,6 +73,8 @@ function App() {
             <Route path="solicitudes" element={<SolicitudesPanel />} />
             <Route path="bloqueos" element={<BloqueosPanel />} />
           </Route>
+          <Route path="/mensajes" element={<ProtectedRoute><Mensajes /></ProtectedRoute>} />
+          <Route path="/mensajes/:id" element={<ProtectedRoute><MensajeDetalle /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

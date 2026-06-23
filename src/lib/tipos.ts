@@ -4,6 +4,8 @@ export type Turno = 'maniana' | 'tarde';
 
 export type PreferenciaTurno = 'maniana' | 'tarde' | 'cualquiera';
 
+export type Motivo = 'amistoso' | 'entrenamiento' | 'clases' | 'torneo';
+
 export type EstadoReserva = 'solicitado' | 'reservado' | 'cancelado';
 
 export interface Usuario {
@@ -31,12 +33,13 @@ export interface Reserva {
   fecha: string;
   turno: Turno | null;
   turnoPreferencia: PreferenciaTurno;
-  cancha: number | null;
+  canchas: number[];
   estado: EstadoReserva;
   capitanEquipo: string;
   capitanNombre: string;
   capitanUid: string;
   equipoRival: string;
+  motivo: Motivo;
   observaciones: string;
   solicitadoEn: Date;
   aprobadoEn: Date | null;
@@ -49,6 +52,7 @@ export interface ReservaInput {
   capitanEquipo: string;
   capitanNombre: string;
   equipoRival: string;
+  motivo: Motivo;
   observaciones: string;
 }
 
@@ -91,4 +95,30 @@ export interface SlotInfo {
   estado: EstadoSlot;
   reserva?: Reserva;
   bloqueo?: SlotBloqueado;
+}
+
+// MENSAJES INTERNOS
+export type MensajeCategoria = 'comunicacion' | 'aprobacion' | 'rechazo';
+export type MensajeTipo = 'directo' | 'sistema';
+
+export interface Mensaje {
+  id: string;
+  paraUid: string;
+  deUid: string;
+  deNombre: string;
+  deRol: Rol;
+  tipo: MensajeTipo;
+  categoria: MensajeCategoria;
+  asunto: string;
+  cuerpo: string;
+  leido: boolean;
+  threadId: string;
+  createdAt: Date;
+}
+
+export interface MensajeInput {
+  paraUid: string;
+  asunto: string;
+  cuerpo: string;
+  threadId?: string;
 }

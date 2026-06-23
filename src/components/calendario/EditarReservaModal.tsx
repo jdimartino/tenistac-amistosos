@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Reserva, Turno } from '../../lib/tipos';
+import type { Motivo, Reserva, Turno } from '../../lib/tipos';
 import { useReservas } from '../../hooks/useReservas';
 import { useUsuarios } from '../../hooks/useUsuarios';
 
@@ -20,9 +20,10 @@ export const EditarReservaModal = ({ reserva, onClose }: EditarReservaModalProps
   const { usuarios } = useUsuarios();
   const [fecha, setFecha] = useState(reserva.fecha);
   const [turno, setTurno] = useState<Turno | ''>(reserva.turno || '');
-  const [cancha, setCancha] = useState<number | ''>(reserva.cancha || '');
+  const [canchas, setCanchas] = useState<number[]>(reserva.canchas || []);
   const [capitanEquipo, setCapitanEquipo] = useState(reserva.capitanEquipo || '');
   const [capitanNombre, setCapitanNombre] = useState(reserva.capitanNombre);
+  const [motivo, setMotivo] = useState<Motivo>(reserva.motivo || 'amistoso');
   const [equipoRival, setEquipoRival] = useState(reserva.equipoRival);
   const [observaciones, setObservaciones] = useState(reserva.observaciones || '');
   const [loading, setLoading] = useState(false);
@@ -34,10 +35,11 @@ export const EditarReservaModal = ({ reserva, onClose }: EditarReservaModalProps
       await editarReserva(reserva.id, {
         fecha,
         turno: turno || null,
-        cancha: cancha || null,
+        canchas,
         capitanEquipo,
         capitanNombre,
         equipoRival,
+        motivo,
         observaciones,
       });
       onClose();
@@ -79,19 +81,26 @@ export const EditarReservaModal = ({ reserva, onClose }: EditarReservaModalProps
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Cancha</label>
-              <select
-                value={cancha}
-                onChange={(e) => setCancha(e.target.value ? Number(e.target.value) : '')}
-                className="w-full border rounded px-3 py-2"
-              >
-                <option value="">Sin asignar</option>
-                {CANCHAS.map(c => (
-                  <option key={c} value={c}>Cancha {c}</option>
-                ))}
-              </select>
+          <div>
+            <label className="block text-sm font-medium mb-1">Canchas</label>
+            <div className="flex flex-wrap gap-2">
+              {CANCHAS.map(c => (
+                <label key={c} className={`flex items-center gap-1 rounded border px-2 py-1 text-sm cursor-pointer ${
+                  canchas.includes(c) ? 'bg-green-100 border-green-500 text-green-800' : 'border-gray-300 hover:bg-gray-50'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={canchas.includes(c)}
+                    onChange={() => {
+                      setCanchas(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
+                    }}
+                    className="rounded"
+                  />
+                  C{c}
+                </label>
+              ))}
             </div>
+          </div>
           </div>
 
           <div>
@@ -124,6 +133,20 @@ export const EditarReservaModal = ({ reserva, onClose }: EditarReservaModalProps
                 className="w-full border rounded px-3 py-2"
               />
             )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Motivo</label>
+            <select
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value as Motivo)}
+              className="w-full border rounded px-3 py-2"
+            >
+              <option value="amistoso">Amistoso</option>
+              <option value="entrenamiento">Entrenamiento</option>
+              <option value="clases">Clases</option>
+              <option value="torneo">Torneo</option>
+            </select>
           </div>
 
           <div>

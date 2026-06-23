@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useUsuarios } from '../../hooks/useUsuarios';
 import { Button } from '../../components/ui/Button';
@@ -110,32 +110,29 @@ const UsuarioForm = ({ form, editingUid, submitting, error, success, onFormChang
 interface UsuarioCardProps {
   usuario: Usuario;
   onEdit: () => void;
-  onSetPassword: () => void;
   onDelete: () => void;
-  resetLoading: boolean;
   deleting: boolean;
 }
 
-const UsuarioCard = ({ usuario: u, onEdit, onSetPassword, onDelete, resetLoading, deleting }: UsuarioCardProps) => (
-  <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-    <div>
-      <p className="font-medium text-gray-900">{u.username}</p>
-      <p className="text-sm text-gray-500">
-        {u.displayName || u.username}
-        {u.email ? ` · ${u.email}` : ''}
+const UsuarioCard = ({ usuario: u, onEdit, onDelete, deleting }: UsuarioCardProps) => (
+  <div className="flex flex-row items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm">
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-2">
+        <span className="truncate text-sm font-semibold text-gray-900">{u.displayName || u.username}</span>
+        <Badge color={u.role === 'admin' ? 'red' : 'green'}>{u.role}</Badge>
+      </div>
+      <p className="truncate text-xs text-gray-500">
+        <span className="text-gray-400">@{u.username}</span>
         {u.equipo ? ` · ${u.equipo}` : ''}
+        {u.email ? ` · ${u.email}` : ''}
       </p>
-      <Badge color={u.role === 'admin' ? 'red' : 'green'}>{u.role}</Badge>
     </div>
-    <div className="flex flex-col gap-2 sm:flex-row">
-      <Button variant="secondary" size="sm" onClick={onEdit}>
+    <div className="flex shrink-0 gap-1">
+      <Button variant="secondary" size="xs" onClick={onEdit}>
         Editar
       </Button>
-      <Button variant="secondary" size="sm" onClick={onSetPassword} disabled={resetLoading}>
-        {resetLoading ? 'Reseteando...' : 'Reset'}
-      </Button>
-      <Button variant="danger" size="sm" onClick={onDelete} disabled={deleting}>
-        {deleting ? 'Eliminando...' : 'Eliminar'}
+      <Button variant="danger" size="xs" onClick={onDelete} disabled={deleting}>
+        {deleting ? '...' : 'Eliminar'}
       </Button>
     </div>
   </div>
@@ -149,13 +146,27 @@ export const UsuariosPanel = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [resetLoading, setResetLoading] = useState<string | null>(null);
   const [deletingUid, setDeletingUid] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
+
+  const usuariosFiltrados = useMemo(() => {
+    const termino = busqueda.toLowerCase().trim();
+    let lista = [...usuarios];
+    lista.sort((a, b) => (a.displayName || a.username).localeCompare(b.displayName || b.username, 'es'));
+    if (!termino) return lista;
+    return lista.filter(
+      (u) =>
+        u.username.toLowerCase().includes(termino) ||
+        (u.displayName && u.displayName.toLowerCase().includes(termino))
+    );
+  }, [usuarios, busqueda]);
 
   const resetForm = () => {
     setForm(INITIAL_FORM);
     setEditingUid(null);
     setNewPassword(null);
+    setShowForm(false);
     setError(null);
     setSuccess(null);
   };
@@ -195,14 +206,11 @@ export const UsuariosPanel = () => {
   const handleSetPassword = async (uid: string) => {
     const newPass = prompt('Ingresá la nueva contraseña (mínimo 6 caracteres):');
     if (!newPass || newPass.length < 6) { alert('La contraseña debe tener al menos 6 caracteres'); return; }
-    setResetLoading(uid);
     try {
       const result = await setPassword(uid, newPass);
       setNewPassword(result);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Error al cambiar la contraseña');
-    } finally {
-      setResetLoading(null);
     }
   };
 
@@ -215,40 +223,62 @@ export const UsuariosPanel = () => {
   if (loading) return <Spinner className="h-8 w-8 text-green-600" />;
 
   return (
-    <div className="space-y-6">
-      <UsuarioForm
-        form={form}
-        editingUid={editingUid}
-        submitting={submitting}
-        error={error}
-        success={success}
-        onFormChange={setForm}
-        onSubmit={handleSubmit}
-        onCancel={resetForm}
-        onSetPassword={handleSetPassword}
-      />
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-900">Usuarios</h3>
+        {!showForm && !editingUid && (
+          <Button size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
+            + Agregar usuario
+          </Button>
+        )}
+      </div>
+
+      {(showForm || editingUid) && (
+        <UsuarioForm
+          form={form}
+          editingUid={editingUid}
+          submitting={submitting}
+          error={error}
+          success={success}
+          onFormChange={setForm}
+          onSubmit={handleSubmit}
+          onCancel={resetForm}
+          onSetPassword={handleSetPassword}
+        />
+      )}
 
       {newPassword && (
-        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+        <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-900">
           <p className="font-medium">Nueva contraseña (copiala ahora):</p>
           <div className="mt-1 flex items-center gap-2">
             <code className="rounded bg-green-100 px-2 py-1 font-mono text-base">{newPassword}</code>
-            <Button type="button" size="sm" onClick={() => { navigator.clipboard.writeText(newPassword); alert('Copiado al portapapeles'); }}>
+            <Button type="button" size="xs" onClick={() => { navigator.clipboard.writeText(newPassword); alert('Copiado al portapapeles'); }}>
               Copiar
             </Button>
           </div>
         </div>
       )}
 
-      <div className="space-y-3">
-        {usuarios.map((u) => (
+      <div className="relative">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+          <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+        </svg>
+        <input
+          type="text"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar usuario..."
+          className="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200"
+        />
+      </div>
+
+      <div className="space-y-2">
+        {usuariosFiltrados.map((u) => (
           <UsuarioCard
             key={u.uid}
             usuario={u}
             onEdit={() => startEdit(u)}
-            onSetPassword={() => handleSetPassword(u.uid)}
             onDelete={() => handleDelete(u.uid)}
-            resetLoading={resetLoading === u.uid}
             deleting={deletingUid === u.uid}
           />
         ))}

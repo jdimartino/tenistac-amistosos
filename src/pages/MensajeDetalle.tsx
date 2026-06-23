@@ -1,18 +1,18 @@
-import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useMemo, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { Textarea } from '../components/ui/Textarea';
-import { useMensaje, useMensajesActions } from '../hooks/useMensajes';
+import { useThread, useMensajesActions } from '../hooks/useMensajes';
 import { useAuth } from '../hooks/useAuth';
-import type { Mensaje } from '../lib/tipos';
 
-const badgeColor = (categoria: Mensaje['categoria']) => {
-  if (categoria === 'aprobacion') return 'green';
-  if (categoria === 'rechazo') return 'red';
-  return 'gray';
+const rolLabel = (rol: string) => {
+  if (rol === 'admin') return 'Administrador';
+  if (rol === 'capitan') return 'Capitán';
+  if (rol === 'subcapitan') return 'Sub-Capitán';
+  return rol;
 };
 
 const formatDate = (fecha: Date | undefined): string => {
@@ -29,48 +29,42 @@ const formatDate = (fecha: Date | undefined): string => {
 
 export const MensajeDetalle = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { usuario } = useAuth();
-  const { mensaje, loading } = useMensaje(id);
-  const { responder, borrar } = useMensajesActions();
+  const { mensajes, loading } = useThread(id);
+  const { responder } = useMensajesActions();
   const [respuesta, setRespuesta] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const [eliminando, setEliminando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const esAdmin = usuario?.role === 'admin';
+  const primerMensaje = mensajes[0];
 
-  const puedeResponder =
-    mensaje &&
-    mensaje.tipo === 'directo' &&
-    mensaje.deUid !== usuario?.uid;
+  const puedeResponder = useMemo(() => {
+    if (!primerMensaje || !usuario) return false;
+    const ultimo = mensajes[mensajes.length - 1];
+    return ultimo?.deUid !== usuario.uid;
+  }, [mensajes, usuario, primerMensaje]);
 
-  const paraResponder = mensaje && mensaje.deRol === 'admin'
-    ? 'admin'
-    : mensaje?.deUid ?? '';
-
-  const handleEliminar = async () => {
-    if (!mensaje || !confirm('¿Eliminar este mensaje?')) return;
-    setEliminando(true);
-    setError(null);
-    try {
-      await borrar(mensaje.id);
-      navigate('/mensajes');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al eliminar.');
-      setEliminando(false);
+  const paraResponder = useMemo(() => {
+    if (!primerMensaje) return '';
+    const ultimo = mensajes[mensajes.length - 1];
+    if (!ultimo) return '';
+    if (ultimo.deRol === 'admin') return 'admin';
+    if (ultimo.deUid === usuario?.uid) {
+      return ultimo.paraUid;
     }
-  };
+    return ultimo.deUid;
+  }, [mensajes, primerMensaje, usuario]);
 
   const handleResponder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!mensaje || !respuesta.trim()) return;
+    if (!primerMensaje || !respuesta.trim() || !id) return;
     setEnviando(true);
     setError(null);
     try {
-      await responder(paraResponder, `Re: ${mensaje.asunto}`, respuesta.trim());
+      await responder(paraResponder, `Re: ${primerMensaje.asunto}`, respuesta.trim(), id);
       setRespuesta('');
-      navigate('/mensajes');
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al responder.');
     } finally {
@@ -93,51 +87,47 @@ export const MensajeDetalle = () => {
         <div className="flex justify-center py-8">
           <Spinner className="h-8 w-8 text-green-600" />
         </div>
-      ) : !mensaje ? (
-        <p className="py-8 text-center text-gray-500">Mensaje no encontrado.</p>
+      ) : mensajes.length === 0 ? (
+        <p className="py-8 text-center text-gray-500">Conversación no encontrada.</p>
       ) : (
-        <div className="relative rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          {esAdmin && (
-            <button
-              type="button"
-              onClick={handleEliminar}
-              disabled={eliminando}
-              title="Eliminar"
-              className="absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow border border-gray-200 text-red-600 hover:bg-red-50 hover:border-red-300 disabled:opacity-50"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                <line x1="10" y1="11" x2="10" y2="17" />
-                <line x1="14" y1="11" x2="14" y2="17" />
-              </svg>
-            </button>
+        <div className="space-y-3">
+          {primerMensaje && (
+            <h2 className="text-lg font-semibold text-gray-900">
+              {primerMensaje.asunto}
+            </h2>
           )}
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <Badge color={badgeColor(mensaje.categoria)}>
-              {mensaje.categoria === 'aprobacion'
-                ? 'Aprobación'
-                : mensaje.categoria === 'rechazo'
-                  ? 'Rechazo'
-                  : 'Comunicación'}
-            </Badge>
-            <span className="text-xs text-gray-500">
-              {formatDate(mensaje.createdAt)}
-            </span>
-          </div>
 
-          <h2 className="mb-2 text-lg font-semibold text-gray-900">
-            {mensaje.asunto}
-          </h2>
-
-          <p className="mb-3 text-xs text-gray-500">
-            De: <span className="font-medium text-gray-700">{mensaje.deNombre}</span>
-            {mensaje.deRol && ` (${mensaje.deRol})`}
-          </p>
-
-          <div className="whitespace-pre-wrap rounded-lg bg-gray-50 p-4 text-sm text-gray-800">
-            {mensaje.cuerpo}
-          </div>
+          {mensajes.map((m) => {
+            const esPropio = m.deUid === usuario?.uid;
+            return (
+              <div
+                key={m.id}
+                className={`rounded-xl border p-4 shadow-sm ${
+                  esPropio
+                    ? 'border-green-200 bg-green-50/30 ml-6'
+                    : 'border-gray-200 bg-white mr-6'
+                }`}
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900">
+                      {m.deNombre}
+                    </span>
+                    <Badge color={m.deRol === 'admin' ? 'green' : 'gray'}>
+                      {rolLabel(m.deRol)}
+                    </Badge>
+                    {esPropio && (
+                      <span className="text-xs text-gray-400">(tú)</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-500">{formatDate(m.createdAt)}</span>
+                </div>
+                <div className="whitespace-pre-wrap text-sm text-gray-800">
+                  {m.cuerpo}
+                </div>
+              </div>
+            );
+          })}
 
           {puedeResponder && (
             <form onSubmit={handleResponder} className="mt-5 space-y-3">
@@ -155,6 +145,8 @@ export const MensajeDetalle = () => {
               </Button>
             </form>
           )}
+
+          <div ref={bottomRef} />
         </div>
       )}
     </AppShell>

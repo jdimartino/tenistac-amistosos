@@ -22,6 +22,12 @@ export const nombreDia = (fecha: string): string => {
   return dias[d.getDay()];
 };
 
+export const nombreDiaCompleto = (fecha: string): string => {
+  const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const d = new Date(`${fecha}T00:00:00`);
+  return dias[d.getDay()];
+};
+
 export const esFechaValida = (fecha: string): boolean => {
   return /^\d{4}-\d{2}-\d{2}$/.test(fecha) && !Number.isNaN(new Date(`${fecha}T00:00:00`).getTime());
 };

@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   addDoc,
   deleteDoc,
+  doc,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
   writeBatch,
@@ -27,6 +29,7 @@ const toDate = (value: unknown): Date => {
 const normalizarMensaje = (id: string, data: Record<string, unknown>): Mensaje => ({
   id,
   ...(data as unknown as Omit<Mensaje, 'id' | 'createdAt'>),
+  threadId: (data.threadId as string) || id,
   createdAt: toDate(data.createdAt),
 });
 
@@ -37,7 +40,6 @@ export const useBandeja = () => {
 
   useEffect(() => {
     if (!usuario) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMensajes([]);
       setLoading(false);
       return;
@@ -79,7 +81,6 @@ export const useNoLeidos = () => {
 
   useEffect(() => {
     if (!usuario) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCount(0);
       return;
     }
@@ -115,7 +116,6 @@ export const useMensaje = (id: string | undefined) => {
 
   useEffect(() => {
     if (!id) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }
@@ -151,13 +151,48 @@ export const useMensaje = (id: string | undefined) => {
   return { mensaje, loading };
 };
 
+export const useThread = (threadId: string | undefined) => {
+  const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!threadId) {
+      setMensajes([]);
+      setLoading(false);
+      return;
+    }
+    const q = query(
+      mensajesRef,
+      where('threadId', '==', threadId),
+      orderBy('createdAt', 'asc')
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        setMensajes(
+          snap.docs.map((d) => normalizarMensaje(d.id, d.data()))
+        );
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Error cargando thread:', err);
+        setLoading(false);
+      }
+    );
+    return unsubscribe;
+  }, [threadId]);
+
+  return { mensajes, loading };
+};
+
 export const useMensajesActions = () => {
   const { usuario } = useAuth();
 
   const enviar = useCallback(
     async (input: MensajeInput) => {
       if (!usuario) throw new Error('No autenticado');
-      await addDoc(mensajesRef, {
+      const docRef = doc(mensajesRef);
+      await setDoc(docRef, {
         paraUid: input.paraUid,
         deUid: usuario.uid,
         deNombre: usuario.displayName || usuario.username,
@@ -167,6 +202,7 @@ export const useMensajesActions = () => {
         asunto: input.asunto,
         cuerpo: input.cuerpo,
         leido: false,
+        threadId: docRef.id,
         createdAt: serverTimestamp(),
       });
     },
@@ -174,7 +210,7 @@ export const useMensajesActions = () => {
   );
 
   const responder = useCallback(
-    async (paraUid: string, asunto: string, cuerpo: string) => {
+    async (paraUid: string, asunto: string, cuerpo: string, threadId: string) => {
       if (!usuario) throw new Error('No autenticado');
       await addDoc(mensajesRef, {
         paraUid,
@@ -186,6 +222,7 @@ export const useMensajesActions = () => {
         asunto,
         cuerpo,
         leido: false,
+        threadId,
         createdAt: serverTimestamp(),
       });
     },

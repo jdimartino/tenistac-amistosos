@@ -1,5 +1,5 @@
 import type { SlotInfo, Reserva, Turno } from '../../lib/tipos';
-import { nombreDia } from '../../lib/fecha';
+import { nombreDiaCompleto } from '../../lib/fecha';
 import { SlotCancha } from './SlotCancha';
 
 interface DiaColumnaProps {
@@ -7,23 +7,26 @@ interface DiaColumnaProps {
   slots: SlotInfo[];
   pendientes: Reserva[];
   onEditarReserva?: (reserva: Reserva) => void;
+  onBloqueoClick?: (slot: SlotInfo) => void;
 }
 
-export const DiaColumna = ({ fecha, slots, pendientes, onEditarReserva }: DiaColumnaProps) => {
+export const DiaColumna = ({ fecha, slots, pendientes, onEditarReserva, onBloqueoClick }: DiaColumnaProps) => {
   const [, mes, dia] = fecha.split('-');
-  const label = `${nombreDia(fecha)} ${dia}/${mes}`;
+  const label = `${nombreDiaCompleto(fecha)} ${dia}/${mes}`;
+  const diaSemana = new Date(`${fecha}T00:00:00`).getDay();
+  const headerFinde = diaSemana === 0 ? 'bg-sky-100 rounded-t-2xl -mx-3 -mt-3 px-3 pt-3 pb-2' : diaSemana === 6 ? 'bg-sky-50 rounded-t-2xl -mx-3 -mt-3 px-3 pt-3 pb-2' : '';
 
   const turnos: Turno[] = ['maniana', 'tarde'];
 
   const getTurnoLabel = (t: string | null) => {
-    if (t === 'maniana') return 'Mañana';
-    if (t === 'tarde') return 'Tarde';
+    if (t === 'maniana') return 'Turno Mañana';
+    if (t === 'tarde') return 'Turno Tarde';
     return 'Cualquiera';
   };
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
-      <div className="mb-3 border-b border-gray-100 pb-2 text-center">
+      <div className={`mb-3 border-b border-gray-100 pb-2 text-center ${headerFinde}`}>
         <span className="text-sm font-semibold text-gray-900">{label}</span>
       </div>
 
@@ -48,7 +51,7 @@ export const DiaColumna = ({ fecha, slots, pendientes, onEditarReserva }: DiaCol
         {turnos.map((turno) => (
           <div key={turno} className="space-y-2">
             <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500">
-              {turno === 'maniana' ? 'Mañana 08:00' : 'Tarde 14:00'}
+              {turno === 'maniana' ? 'Turno Mañana 08:00' : 'Turno Tarde 14:00'}
             </h3>
             <div className="grid grid-cols-5 gap-2">
               {slots
@@ -58,6 +61,7 @@ export const DiaColumna = ({ fecha, slots, pendientes, onEditarReserva }: DiaCol
                     key={slot.cancha}
                     slot={slot}
                     onEditar={slot.reserva && onEditarReserva ? () => onEditarReserva(slot.reserva!) : undefined}
+                    onBloqueoClick={slot.estado === 'bloqueado' && onBloqueoClick ? () => onBloqueoClick(slot) : undefined}
                   />
                 ))}
             </div>

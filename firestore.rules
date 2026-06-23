@@ -26,19 +26,20 @@ service cloud.firestore {
     match /reservas/{reservaId} {
       allow read: if signedIn();
 
-      // Crear solicitud sin turno/cancha (solo fecha y preferencia de turno)
+      // Crear solicitud sin turno/cancha (solo fecha, preferencia de turno y motivo)
       allow create: if signedIn()
         && request.resource.data.estado == 'solicitado'
         && request.resource.data.capitanUid == request.auth.uid
         && request.resource.data.turno == null
-        && request.resource.data.cancha == null
+        && request.resource.data.canchas.size() == 0
         && request.resource.data.turnoPreferencia in ['maniana', 'tarde', 'cualquiera']
+        && request.resource.data.motivo in ['amistoso', 'entrenamiento', 'clases', 'torneo']
         && !exists(/databases/$(database)/documents/bloqueos/$(request.resource.data.fecha));
 
-      // Capitán puede cancelar su propia solicitud pendiente
+      // Capitán puede cancelar su propia solicitud pendiente; admin puede borrar cualquier reserva
       allow delete: if signedIn()
-        && resource.data.capitanUid == request.auth.uid
-        && resource.data.estado == 'solicitado';
+        && (resource.data.capitanUid == request.auth.uid && resource.data.estado == 'solicitado'
+         || isAdmin());
 
       // Solo admin puede asignar turno/cancha y aprobar
       allow update: if isAdmin();
@@ -50,10 +51,27 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // SLOTS BLOQUEADOS: colección derivada. Solo Cloud Functions escribe; todos los usuarios leen.
+    // SLOTS BLOQUEADOS: colección derivada. Solo Cloud Functions escribe; admin puede borrar slots individuales.
     match /slotsBloqueados/{slotId} {
       allow read: if signedIn();
-      allow write: if false;
+      allow create, update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // MENSAJES: cualquier usuario logueado lee (si es para él, de él, o para admin);
+    // crea si es suyo; solo dueño puede marcar leído o borrar.
+    match /mensajes/{mensajeId} {
+      allow read: if signedIn()
+        && (resource.data.paraUid == request.auth.uid
+         || resource.data.deUid == request.auth.uid
+         || resource.data.paraUid == 'admin');
+      allow create: if signedIn()
+        && request.resource.data.deUid == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.paraUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leido']);
+      allow delete: if signedIn()
+        && resource.data.paraUid == request.auth.uid;
     }
   }
 }

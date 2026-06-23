@@ -33,9 +33,9 @@ export const construirSlotsDia = (
       const slotBloqueoKey = slotId(fecha, turno, cancha);
       const bloqueo = bloqueos[slotBloqueoKey];
       
-      // Buscar reserva asignada a este slot especifico (turno y cancha no null)
+      // Buscar reserva asignada a este slot especifico (turno y cancha en array canchas)
       const reserva = reservas.find(
-        r => r.fecha === fecha && r.turno === turno && r.cancha === cancha
+        r => r.fecha === fecha && r.turno === turno && r.canchas?.includes(cancha)
       );
 
       slots.push({

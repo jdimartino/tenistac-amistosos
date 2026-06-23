@@ -34,8 +34,9 @@ export const Login = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg">
-        <h1 className="mb-1 text-2xl font-bold text-gray-900">TennisTac</h1>
-        <p className="mb-6 text-gray-600">Solicitud de canchas de tenis</p>
+        <h1 className="mb-1 text-center text-2xl font-bold text-gray-900">Tenis Táchira</h1>
+        <p className="text-center text-sm text-gray-500">Solicitud de canchas de tenis</p>
+        <p className="mb-6 text-center text-xs text-gray-400">Version Beta 1.0</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
@@ -61,6 +62,7 @@ export const Login = () => {
             {submitting ? 'Ingresando...' : 'Ingresar'}
           </Button>
         </form>
+        <p className="mt-4 text-center text-xs text-gray-400">#JDMRules</p>
       </div>
     </div>
   );
