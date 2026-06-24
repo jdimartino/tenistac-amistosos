@@ -233,10 +233,10 @@ export const UsuariosPanel = () => {
         )}
       </div>
 
-      {(showForm || editingUid) && (
+      {showForm && (
         <UsuarioForm
           form={form}
-          editingUid={editingUid}
+          editingUid={null}
           submitting={submitting}
           error={error}
           success={success}
@@ -274,13 +274,29 @@ export const UsuariosPanel = () => {
 
       <div className="space-y-2">
         {usuariosFiltrados.map((u) => (
-          <UsuarioCard
-            key={u.uid}
-            usuario={u}
-            onEdit={() => startEdit(u)}
-            onDelete={() => handleDelete(u.uid)}
-            deleting={deletingUid === u.uid}
-          />
+          <div key={u.uid}>
+            <UsuarioCard
+              usuario={u}
+              onEdit={() => startEdit(u)}
+              onDelete={() => handleDelete(u.uid)}
+              deleting={deletingUid === u.uid}
+            />
+            {editingUid === u.uid && (
+              <div className="mt-2">
+                <UsuarioForm
+                  form={form}
+                  editingUid={editingUid}
+                  submitting={submitting}
+                  error={error}
+                  success={success}
+                  onFormChange={setForm}
+                  onSubmit={handleSubmit}
+                  onCancel={resetForm}
+                  onSetPassword={handleSetPassword}
+                />
+              </div>
+            )}
+          </div>
         ))}
       </div>
     </div>

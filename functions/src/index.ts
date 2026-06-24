@@ -45,10 +45,47 @@ const assertAdmin = async (uid: string) => {
   }
 };
 
+const getAdminEmails = async (): Promise<string[]> => {
+  const adminsSnap = await db.collection('usuarios').where('role', '==', 'admin').where('activo', '==', true).get();
+  return adminsSnap.docs
+    .map(doc => doc.data().email)
+    .filter(email => email && typeof email === 'string' && email.trim()) as string[];
+};
+
+const sendAdminNotification = async (subject: string, htmlContent: string) => {
+  const adminEmails = await getAdminEmails();
+  if (adminEmails.length === 0) {
+    console.log('No admin emails found, skipping notification.');
+    return;
+  }
+  
+  const client = new BrevoClient({ apiKey: brevoApiKey.value() });
+  try {
+    await client.transactionalEmails.sendTransacEmail({
+      sender: { name: 'Club Táchira', email: 'notificaciones@tenistac.com' },
+      to: adminEmails.map((email) => ({ email })),
+      subject,
+      htmlContent,
+    });
+  } catch (err: unknown) {
+    console.error('Error sending admin email notification:', err);
+  }
+};
+
 const sumarDias = (fecha: string, dias: number): string => {
   const d = new Date(`${fecha}T00:00:00`);
   d.setDate(d.getDate() + dias);
   return d.toISOString().split('T')[0];
+};
+
+const formatFechaVenezuela = (date: any): string => {
+  const d = date.toDate ? date.toDate() : new Date(date);
+  return new Intl.DateTimeFormat('es-VE', {
+    timeZone: 'America/Caracas',
+    dateStyle: 'short',
+    timeStyle: 'short',
+    hour12: true,
+  }).format(d);
 };
 
 const expandirBloqueo = async (
@@ -304,6 +341,29 @@ export const createBloqueo = onCall<BloqueoInput, Promise<{ id: string }>>(
     });
 
     await expandirBloqueo(bloqueoRef.id, fechaInicio, fechaFin, turno, cancha, motivo);
+
+    const adminSnap = await db.collection('usuarios').doc(request.auth.uid).get();
+    const adminName = adminSnap.data()?.displayName || adminSnap.data()?.username || 'Admin';
+    const canchalabel = cancha === null ? 'Todas' : `Cancha ${cancha}`;
+
+    await sendAdminNotification(
+      `[TenisTac] Nuevo bloqueo creado`,
+      `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #ef4444;">Nuevo bloqueo de cancha</h2>
+        <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <p><strong>Tipo:</strong> ${tipo}</p>
+          <p><strong>Fechas:</strong> ${fechaInicio} a ${fechaFin}</p>
+          <p><strong>Turno:</strong> ${turno}</p>
+          <p><strong>Cancha:</strong> ${canchalabel}</p>
+          <p><strong>Motivo:</strong> ${motivo}</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+          <p><strong>Creado por:</strong> ${adminName}</p>
+        </div>
+      </div>
+      `
+    );
+
     return { id: bloqueoRef.id };
   }
 );
@@ -315,6 +375,9 @@ export const deleteBloqueo = onCall<{ id: string }, void>(async (request) => {
   await assertAdmin(request.auth.uid);
 
   const { id } = request.data;
+  const bloqueoSnap = await db.collection('bloqueos').doc(id).get();
+  const bloqueoData = bloqueoSnap.data();
+
   const slotsSnap = await db.collection('slotsBloqueados').where('bloqueoId', '==', id).get();
 
   const batch = db.batch();
@@ -322,6 +385,31 @@ export const deleteBloqueo = onCall<{ id: string }, void>(async (request) => {
   await batch.commit();
 
   await db.collection('bloqueos').doc(id).delete();
+
+  // Notify admins
+  if (bloqueoData) {
+    const adminSnap = await db.collection('usuarios').doc(request.auth.uid).get();
+    const adminName = adminSnap.data()?.displayName || adminSnap.data()?.username || 'Admin';
+    const canchalabel = bloqueoData.cancha === null ? 'Todas' : `Cancha ${bloqueoData.cancha}`;
+    
+    await sendAdminNotification(
+      `[TenisTac] Bloqueo eliminado`,
+      `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #ef4444;">Bloqueo de cancha eliminado</h2>
+        <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <p><strong>Tipo:</strong> ${bloqueoData.tipo}</p>
+          <p><strong>Fechas:</strong> ${bloqueoData.fechaInicio} a ${bloqueoData.fechaFin}</p>
+          <p><strong>Turno:</strong> ${bloqueoData.turno}</p>
+          <p><strong>Cancha:</strong> ${canchalabel}</p>
+          <p><strong>Motivo:</strong> ${bloqueoData.motivo}</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+          <p><strong>Eliminado por:</strong> ${adminName}</p>
+        </div>
+      </div>
+      `
+    );
+  }
 });
 
 export const updateBloqueo = onCall<{ id: string } & BloqueoInput, void>(async (request) => {
@@ -476,7 +564,8 @@ export const onReservaSolicitada = onDocumentCreated(
     const data = event.data?.data();
     if (!data || data.estado !== 'solicitado') return;
 
-    const { capitanNombre, capitanEquipo, equipoRival, fecha, turnoPreferencia, motivo, observaciones } = data as {
+    const { capitanUid, capitanNombre, capitanEquipo, equipoRival, fecha, turnoPreferencia, motivo, observaciones, solicitadoEn } = data as {
+      capitanUid: string;
       capitanNombre: string;
       capitanEquipo: string;
       equipoRival: string;
@@ -484,6 +573,7 @@ export const onReservaSolicitada = onDocumentCreated(
       turnoPreferencia: string;
       motivo?: string;
       observaciones?: string;
+      solicitadoEn?: any;
     };
 
     // Get all active admins with email
@@ -494,13 +584,23 @@ export const onReservaSolicitada = onDocumentCreated(
       if (email && typeof email === 'string' && email.trim()) recipientEmails.push(email);
     }
 
+    // Add captain email
+    if (capitanUid) {
+      const captainSnap = await db.collection('usuarios').doc(capitanUid).get();
+      if (captainSnap.exists) {
+        const email = captainSnap.data()?.email;
+        if (email && typeof email === 'string' && email.trim() && !recipientEmails.includes(email)) recipientEmails.push(email);
+      }
+    }
+
     if (recipientEmails.length === 0) {
-      console.log('No admin emails found, skipping notification.');
+      console.log('No recipient emails found, skipping notification.');
       return;
     }
 
     const turnoLabel = turnoPreferencia === 'maniana' ? 'Mañana' : turnoPreferencia === 'tarde' ? 'Tarde' : 'Cualquiera';
     const motivoLabel = motivo === 'amistoso' ? 'Amistoso' : motivo === 'entrenamiento' ? 'Entrenamiento' : motivo === 'clases' ? 'Clases' : motivo === 'torneo' ? 'Torneo' : motivo || '';
+    const fechaSolicitud = solicitadoEn ? formatFechaVenezuela(solicitadoEn) : 'No disponible';
 
     const client = new BrevoClient({ apiKey: brevoApiKey.value() });
 
@@ -519,6 +619,7 @@ export const onReservaSolicitada = onDocumentCreated(
               <p><strong>Fecha:</strong> ${fecha}</p>
               <p><strong>Prefiere:</strong> ${turnoLabel}</p>
               <p><strong>Motivo:</strong> ${motivoLabel}</p>
+              <p><strong>Solicitado el:</strong> ${fechaSolicitud}</p>
               ${observaciones ? `<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;"><p><strong>Observaciones:</strong></p><p style="white-space: pre-wrap;">${observaciones}</p>` : ''}
             </div>
             <a href="https://canchas.tenistac.com/admin"

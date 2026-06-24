@@ -63,3 +63,13 @@ export const formatoFechaCompleto = (fecha: string): string => {
   const [anio, mes, dia] = fecha.split('-');
   return `${dia}/${mes}/${anio}`;
 };
+
+export const formatFechaVenezuela = (date: Date | any): string => {
+  const d = date.toDate ? date.toDate() : new Date(date);
+  return new Intl.DateTimeFormat('es-VE', {
+    timeZone: 'America/Caracas',
+    dateStyle: 'short',
+    timeStyle: 'short',
+    hour12: true,
+  }).format(d);
+};

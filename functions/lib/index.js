@@ -126,31 +126,67 @@ exports.createUser = (0, https_1.onCall)(async (request) => {
     }
 });
 exports.updateUser = (0, https_1.onCall)(async (request) => {
-    if (!request.auth) {
-        throw new https_1.HttpsError('unauthenticated', 'Debes iniciar sesión.');
-    }
-    await assertAdmin(request.auth.uid);
-    const { uid, username, ...data } = request.data;
-    // Si se está cambiando el username, verificar unicidad
-    if (username) {
-        const existing = await db.collection('usuarios').where('username', '==', username).get();
-        const isTakenByOther = existing.docs.some(doc => doc.id !== uid);
-        if (isTakenByOther) {
-            throw new https_1.HttpsError('already-exists', 'El nombre de usuario ya está en uso.');
+    try {
+        if (!request.auth) {
+            throw new https_1.HttpsError('unauthenticated', 'Debes iniciar sesión.');
         }
+        await assertAdmin(request.auth.uid);
+        const { uid, username, ...data } = request.data;
+        if (!uid) {
+            throw new https_1.HttpsError('invalid-argument', 'El uid del usuario es obligatorio.');
+        }
+        const userDoc = await db.collection('usuarios').doc(uid).get();
+        if (!userDoc.exists) {
+            throw new https_1.HttpsError('not-found', 'El usuario no existe.');
+        }
+        // Si se está cambiando el username, verificar unicidad
+        if (username) {
+            const cleanUsername = username.toLowerCase().trim();
+            if (cleanUsername.length < 2) {
+                throw new https_1.HttpsError('invalid-argument', 'El nombre de usuario debe tener al menos 2 caracteres.');
+            }
+            if (!/^[a-z]+$/.test(cleanUsername)) {
+                throw new https_1.HttpsError('invalid-argument', 'El nombre de usuario solo puede contener letras minúsculas.');
+            }
+            const existing = await db.collection('usuarios').where('username', '==', cleanUsername).get();
+            const isTakenByOther = existing.docs.some(doc => doc.id !== uid);
+            if (isTakenByOther) {
+                throw new https_1.HttpsError('already-exists', 'El nombre de usuario ya está en uso.');
+            }
+        }
+        const finalUsername = username ? username.toLowerCase().trim() : userDoc.data()?.username;
+        const authUpdate = {};
+        if (data.displayName !== undefined)
+            authUpdate.displayName = data.displayName || finalUsername;
+        if (username)
+            authUpdate.email = `${finalUsername}@tenistac-amistosos.app`;
+        if (Object.keys(authUpdate).length > 0) {
+            try {
+                await auth.updateUser(uid, authUpdate);
+            }
+            catch (err) {
+                console.error('Auth update failed:', err, 'with data:', authUpdate);
+                if (err.code?.includes('email-already-exists')) {
+                    throw new https_1.HttpsError('already-exists', 'Ya existe otro usuario con ese nombre de usuario.');
+                }
+                if (err.code?.includes('user-not-found')) {
+                    throw new https_1.HttpsError('not-found', 'El usuario no existe en Firebase Authentication.');
+                }
+                throw new https_1.HttpsError('internal', `Error actualizando usuario en Auth: ${err.message}`);
+            }
+        }
+        const updateData = { ...data };
+        if (username)
+            updateData.username = username.toLowerCase().trim();
+        await db.collection('usuarios').doc(uid).update(updateData);
     }
-    const authUpdate = {};
-    if (data.displayName)
-        authUpdate.displayName = data.displayName;
-    if (username)
-        authUpdate.email = `${username}@tenistac-amistosos.app`;
-    if (Object.keys(authUpdate).length > 0) {
-        await auth.updateUser(uid, authUpdate);
+    catch (error) {
+        console.error('updateUser error:', error);
+        if (error instanceof https_1.HttpsError) {
+            throw error;
+        }
+        throw new https_1.HttpsError('internal', error.message || 'Error interno al actualizar el usuario.');
     }
-    const updateData = { ...data };
-    if (username)
-        updateData.username = username;
-    await db.collection('usuarios').doc(uid).update(updateData);
 });
 exports.deleteUser = (0, https_1.onCall)(async (request) => {
     if (!request.auth) {

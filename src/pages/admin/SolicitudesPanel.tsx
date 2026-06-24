@@ -8,7 +8,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
 import { EditarReservaModal } from '../../components/calendario/EditarReservaModal';
 import type { Reserva, Turno } from '../../lib/tipos';
-import { formatoFechaCompleto } from '../../lib/fecha';
+import { formatoFechaCompleto, formatFechaVenezuela } from '../../lib/fecha';
 
 const TURNOS: { value: Turno; label: string }[] = [
   { value: 'maniana', label: 'Mañana' },
@@ -117,9 +117,14 @@ export const SolicitudesPanel = () => {
         <div key={r.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
             <Badge color="yellow">Solicitado</Badge>
-            <span className="text-xs text-gray-500">
-              {formatoFechaCompleto(r.fecha)}
-            </span>
+            <div className="text-right">
+              <span className="block text-xs font-semibold text-gray-900">
+                {formatoFechaCompleto(r.fecha)}
+              </span>
+              <span className="block text-[10px] text-gray-500">
+                Solicitado: {formatFechaVenezuela(r.solicitadoEn)}
+              </span>
+            </div>
           </div>
           <p className="font-medium text-gray-900">{r.capitanNombre}</p>
           <p className="text-sm text-gray-600">

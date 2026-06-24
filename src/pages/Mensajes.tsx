@@ -164,7 +164,7 @@ export const Mensajes = () => {
               type="button"
               onClick={() => navigate(`/mensajes/${t.threadId}`)}
               className={`w-full rounded-xl border bg-white p-4 text-left shadow-sm transition-colors hover:bg-gray-50 ${
-                t.noLeidos > 0 ? 'border-green-300 bg-green-50/50' : 'border-gray-200'
+                tab === 'recibidos' && t.noLeidos > 0 ? 'border-green-300 bg-green-50/50' : 'border-gray-200'
               }`}
             >
               <div className="mb-1 flex items-center justify-between gap-2">
@@ -172,7 +172,7 @@ export const Mensajes = () => {
                   <span className="text-sm font-medium text-gray-900">
                     {t.ultimo.asunto}
                   </span>
-                  {t.noLeidos > 0 && (
+                  {tab === 'recibidos' && t.noLeidos > 0 && (
                     <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-600 px-1.5 text-[11px] font-bold text-white">
                       {t.noLeidos}
                     </span>
