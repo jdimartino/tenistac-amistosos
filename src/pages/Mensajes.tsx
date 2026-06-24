@@ -5,7 +5,8 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { NuevoMensajeModal } from '../components/mensajes/NuevoMensajeModal';
-import { useBandeja, useMensajesActions } from '../hooks/useMensajes';
+import { useBandeja, useEnviados, useMensajesActions } from '../hooks/useMensajes';
+import { useUsuarios } from '../hooks/useUsuarios';
 import type { Mensaje } from '../lib/tipos';
 
 interface ThreadSummary {
@@ -50,16 +51,30 @@ const formatDate = (fecha: Date | undefined): string => {
   });
 };
 
+type Tab = 'recibidos' | 'enviados';
+
 export const Mensajes = () => {
   const navigate = useNavigate();
-  const { mensajes, loading } = useBandeja();
+  const [tab, setTab] = useState<Tab>('recibidos');
+  const { mensajes: recibidos, loading: loadingRecibidos } = useBandeja();
+  const { mensajes: enviados, loading: loadingEnviados } = useEnviados();
+  const { usuarios } = useUsuarios();
   const { marcarTodoLeido } = useMensajesActions();
   const [showNuevo, setShowNuevo] = useState(false);
   const [marcando, setMarcando] = useState(false);
 
+  const mensajes = tab === 'recibidos' ? recibidos : enviados;
+  const loading = tab === 'recibidos' ? loadingRecibidos : loadingEnviados;
+
   const threads = useMemo(() => agruparThreads(mensajes), [mensajes]);
 
   const totalNoLeidos = threads.reduce((acc, t) => acc + t.noLeidos, 0);
+
+  const getNombrePara = (paraUid: string): string => {
+    if (paraUid === 'admin') return 'Administradores';
+    const user = usuarios.find(u => u.uid === paraUid);
+    return user?.displayName || user?.username || paraUid;
+  };
 
   const handleMarcarTodo = async () => {
     setMarcando(true);
@@ -83,15 +98,16 @@ export const Mensajes = () => {
           ← Canchas
         </Link>
       </div>
+
       <div className="mb-4 flex items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Mensajes</h2>
-          {totalNoLeidos > 0 && (
+          {tab === 'recibidos' && totalNoLeidos > 0 && (
             <p className="text-xs text-gray-500">{totalNoLeidos} sin leer</p>
           )}
         </div>
         <div className="flex gap-2">
-          {totalNoLeidos > 0 && (
+          {tab === 'recibidos' && totalNoLeidos > 0 && (
             <Button
               variant="ghost"
               size="sm"
@@ -107,12 +123,39 @@ export const Mensajes = () => {
         </div>
       </div>
 
+      <div className="mb-4 flex gap-1 rounded-xl bg-gray-100 p-1">
+        <button
+          type="button"
+          className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            tab === 'recibidos'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setTab('recibidos')}
+        >
+          Recibidos
+        </button>
+        <button
+          type="button"
+          className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            tab === 'enviados'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setTab('enviados')}
+        >
+          Enviados
+        </button>
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-8">
           <Spinner className="h-8 w-8 text-green-600" />
         </div>
       ) : threads.length === 0 ? (
-        <p className="py-8 text-center text-gray-500">No hay mensajes.</p>
+        <p className="py-8 text-center text-gray-500">
+          {tab === 'recibidos' ? 'No hay mensajes recibidos.' : 'No hay mensajes enviados.'}
+        </p>
       ) : (
         <div className="space-y-2">
           {threads.map((t) => (
@@ -141,10 +184,16 @@ export const Mensajes = () => {
                 {t.ultimo.cuerpo}
               </p>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <span className="text-xs text-gray-400">
-                  {t.ultimo.deNombre} &mdash; {t.total} mensaje{t.total !== 1 ? 's' : ''}
-                </span>
-                {t.respondidoAdmin && (
+                {tab === 'enviados' ? (
+                  <span className="text-xs text-gray-400">
+                    Para: {getNombrePara(t.ultimo.paraUid)} &mdash; {t.total} mensaje{t.total !== 1 ? 's' : ''}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">
+                    {t.ultimo.deNombre} &mdash; {t.total} mensaje{t.total !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {tab === 'recibidos' && t.respondidoAdmin && (
                   <Badge color="green">Respondido</Badge>
                 )}
               </div>

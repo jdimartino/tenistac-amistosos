@@ -75,6 +75,41 @@ export const useBandeja = () => {
   return { mensajes, loading };
 };
 
+export const useEnviados = () => {
+  const { usuario } = useAuth();
+  const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!usuario) {
+      setMensajes([]);
+      setLoading(false);
+      return;
+    }
+    const q = query(
+      mensajesRef,
+      where('deUid', '==', usuario.uid),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        setMensajes(
+          snap.docs.map((d) => normalizarMensaje(d.id, d.data()))
+        );
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Error cargando enviados:', err);
+        setLoading(false);
+      }
+    );
+    return unsubscribe;
+  }, [usuario]);
+
+  return { mensajes, loading };
+};
+
 export const useNoLeidos = () => {
   const { usuario } = useAuth();
   const [count, setCount] = useState(0);
