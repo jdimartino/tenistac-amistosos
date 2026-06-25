@@ -40,7 +40,7 @@ export const SlotCancha = ({ slot, onEditar, onBloqueoClick }: SlotCanchaProps) 
       <span className="text-xs font-semibold">C{slot.cancha}</span>
       <span className="text-[10px] leading-tight">{estadoLabel[slot.estado]}</span>
       {slot.bloqueo && (
-        <span className="text-[8px] text-gray-500 truncate w-full mt-1">
+        <span className="text-[8px] text-gray-700 truncate w-full mt-1">
           {slot.bloqueo.motivo}
         </span>
       )}

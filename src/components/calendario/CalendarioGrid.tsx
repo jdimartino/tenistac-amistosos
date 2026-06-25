@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useCalendario } from '../../hooks/useCalendario';
 import { useBloqueos } from '../../hooks/useBloqueos';
 import { construirSlotsDia, getSolicitudesPendientesDia } from '../../lib/slot';
-import { sumarDias } from '../../lib/fecha';
+import { generarRangoDias } from '../../lib/fecha';
 import { DiaColumna } from './DiaColumna';
 import { EditarReservaModal } from './EditarReservaModal';
 import { ReservaInfoModal } from './ReservaInfoModal';
@@ -24,10 +24,7 @@ export const CalendarioGrid = ({ fechaInicio, fechaFin }: CalendarioGridProps) =
   const [reservaEditando, setReservaEditando] = useState<Reserva | null>(null);
   const [slotDesbloqueando, setSlotDesbloqueando] = useState<SlotInfo | null>(null);
 
-  const dias: string[] = [];
-  for (let i = 0; i < 15; i++) {
-    dias.push(sumarDias(fechaInicio, i));
-  }
+  const dias = generarRangoDias(fechaInicio, fechaFin);
 
   const handleEditarDesdeInfo = () => {
     if (reservaViendo) {

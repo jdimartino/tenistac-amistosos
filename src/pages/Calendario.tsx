@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppShell } from '../components/layout/AppShell';
 import { CalendarioGrid } from '../components/calendario/CalendarioGrid';
 import { CalendarioCapitan } from '../components/calendario/CalendarioCapitan';
@@ -6,17 +6,24 @@ import { Button } from '../components/ui/Button';
 import { hoy, sumarDias, formatoFecha } from '../lib/fecha';
 import { useAuth } from '../hooks/useAuth';
 
-const DIAS_POR_VISTA = 15;
+const getDiasPorVista = () => (typeof window !== 'undefined' && window.innerWidth < 640 ? 7 : 15);
 
 export const Calendario = () => {
   const { usuario } = useAuth();
+  const [diasPorVista, setDiasPorVista] = useState(getDiasPorVista);
   const [inicio, setInicio] = useState(hoy());
 
-  const fin = sumarDias(inicio, DIAS_POR_VISTA - 1);
+  useEffect(() => {
+    const handleResize = () => setDiasPorVista(getDiasPorVista());
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const fin = sumarDias(inicio, diasPorVista - 1);
   const esAdmin = usuario?.role === 'admin';
 
-  const avanzar = () => setInicio((prev) => sumarDias(prev, DIAS_POR_VISTA));
-  const retroceder = () => setInicio((prev) => sumarDias(prev, -DIAS_POR_VISTA));
+  const avanzar = () => setInicio((prev) => sumarDias(prev, diasPorVista));
+  const retroceder = () => setInicio((prev) => sumarDias(prev, -diasPorVista));
   const resetear = () => setInicio(hoy());
 
   return (

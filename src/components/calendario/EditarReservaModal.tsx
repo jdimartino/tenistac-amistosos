@@ -2,6 +2,11 @@ import { useState } from 'react';
 import type { Motivo, Reserva, Turno } from '../../lib/tipos';
 import { useReservas } from '../../hooks/useReservas';
 import { useUsuarios } from '../../hooks/useUsuarios';
+import { Modal } from '../ui/Modal';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { Textarea } from '../ui/Textarea';
+import { Button } from '../ui/Button';
 
 interface EditarReservaModalProps {
   reserva: Reserva;
@@ -11,6 +16,13 @@ interface EditarReservaModalProps {
 const TURNOS: { value: Turno; label: string }[] = [
   { value: 'maniana', label: 'Mañana' },
   { value: 'tarde', label: 'Tarde' },
+];
+
+const MOTIVOS_OPCIONES = [
+  { value: 'amistoso', label: 'Amistoso' },
+  { value: 'entrenamiento', label: 'Entrenamiento' },
+  { value: 'clases', label: 'Clases' },
+  { value: 'torneo', label: 'Torneo' },
 ];
 
 const CANCHAS = [1, 2, 3, 4, 5];
@@ -52,40 +64,31 @@ export const EditarReservaModal = ({ reserva, onClose }: EditarReservaModalProps
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4">Editar reserva</h2>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium mb-1">Fecha</label>
-            <input
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              className="w-full border rounded px-3 py-2"
-              required
-            />
-          </div>
+    <Modal open={true} onClose={onClose} title="Editar reserva">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <Input
+          label="Fecha"
+          type="date"
+          value={fecha}
+          onChange={(e) => setFecha(e.target.value)}
+          required
+        />
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-sm font-medium mb-1">Turno</label>
-              <select
-                value={turno}
-                onChange={(e) => setTurno(e.target.value as Turno)}
-                className="w-full border rounded px-3 py-2"
-              >
-                <option value="">Sin asignar</option>
-                {TURNOS.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Select
+            label="Turno"
+            value={turno}
+            onChange={(e) => setTurno(e.target.value as Turno)}
+            options={[
+              { value: '', label: 'Sin asignar' },
+              ...TURNOS,
+            ]}
+          />
           <div>
-            <label className="block text-sm font-medium mb-1">Canchas</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Canchas</label>
             <div className="flex flex-wrap gap-2">
               {CANCHAS.map(c => (
-                <label key={c} className={`flex items-center gap-1 rounded border px-2 py-1 text-sm cursor-pointer ${
+                <label key={c} className={`flex items-center gap-1 rounded-xl border px-3 py-2 text-sm cursor-pointer min-h-[44px] ${
                   canchas.includes(c) ? 'bg-green-100 border-green-500 text-green-800' : 'border-gray-300 hover:bg-gray-50'
                 }`}>
                   <input
@@ -101,93 +104,65 @@ export const EditarReservaModal = ({ reserva, onClose }: EditarReservaModalProps
               ))}
             </div>
           </div>
-          </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Equipo</label>
-            <input
-              type="text"
-              value={capitanEquipo}
-              onChange={(e) => setCapitanEquipo(e.target.value)}
-              className="w-full border rounded px-3 py-2"
+        <Input
+          label="Equipo"
+          value={capitanEquipo}
+          onChange={(e) => setCapitanEquipo(e.target.value)}
+        />
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Capitán</label>
+          {usuarios.length > 0 ? (
+            <Select
+              value={capitanNombre}
+              onChange={(e) => setCapitanNombre(e.target.value)}
+              options={usuarios
+                .filter(u => u.role === 'capitan' || u.role === 'subcapitan')
+                .map(u => ({
+                  value: u.username,
+                  label: `${u.username} (${u.displayName || u.username})`,
+                }))}
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Capitán</label>
-            {usuarios.length > 0 ? (
-              <select
-                value={capitanNombre}
-                onChange={(e) => setCapitanNombre(e.target.value)}
-                className="w-full border rounded px-3 py-2"
-              >
-                {usuarios.filter(u => u.role === 'capitan' || u.role === 'subcapitan').map(u => (
-                  <option key={u.uid} value={u.username}>{u.username} ({u.displayName || u.username})</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type="text"
-                value={capitanNombre}
-                onChange={(e) => setCapitanNombre(e.target.value)}
-                className="w-full border rounded px-3 py-2"
-              />
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Motivo</label>
-            <select
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value as Motivo)}
-              className="w-full border rounded px-3 py-2"
-            >
-              <option value="amistoso">Amistoso</option>
-              <option value="entrenamiento">Entrenamiento</option>
-              <option value="clases">Clases</option>
-              <option value="torneo">Torneo</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Equipo rival</label>
-            <input
-              type="text"
-              value={equipoRival}
-              onChange={(e) => setEquipoRival(e.target.value)}
-              className="w-full border rounded px-3 py-2"
-              required
+          ) : (
+            <Input
+              value={capitanNombre}
+              onChange={(e) => setCapitanNombre(e.target.value)}
             />
-          </div>
+          )}
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Observaciones</label>
-            <textarea
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-              className="w-full border rounded px-3 py-2"
-              rows={2}
-            />
-          </div>
+        <Select
+          label="Motivo"
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value as Motivo)}
+          options={MOTIVOS_OPCIONES}
+        />
 
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border rounded hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
-            >
-              {loading ? 'Guardando...' : 'Guardar cambios'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <Input
+          label="Equipo rival"
+          value={equipoRival}
+          onChange={(e) => setEquipoRival(e.target.value)}
+          required
+        />
+
+        <Textarea
+          label="Observaciones"
+          value={observaciones}
+          onChange={(e) => setObservaciones(e.target.value)}
+          rows={2}
+        />
+
+        <div className="flex gap-2 pt-2">
+          <Button variant="secondary" onClick={onClose} className="flex-1">
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={loading} className="flex-1">
+            {loading ? 'Guardando...' : 'Guardar cambios'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 };

@@ -2,12 +2,30 @@ import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { db } from '../../firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { Modal } from '../ui/Modal';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { Textarea } from '../ui/Textarea';
+import { Button } from '../ui/Button';
 import type { PreferenciaTurno, Motivo } from '../../lib/tipos';
 
 interface SolicitudDiaModalProps {
   fecha: string;
   onClose: () => void;
 }
+
+const TURNOS_OPCIONES = [
+  { value: 'cualquiera', label: 'Cualquiera Disponible' },
+  { value: 'maniana', label: 'Mañana' },
+  { value: 'tarde', label: 'Tarde' },
+];
+
+const MOTIVOS_OPCIONES = [
+  { value: 'amistoso', label: 'Amistoso' },
+  { value: 'entrenamiento', label: 'Entrenamiento' },
+  { value: 'clases', label: 'Clases' },
+  { value: 'torneo', label: 'Torneo' },
+];
 
 export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) => {
   const { usuario } = useAuth();
@@ -52,91 +70,69 @@ export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) =>
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6">
-        <h2 className="text-xl font-bold mb-4">Solicitar día</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Fecha</label>
-            <div className="text-gray-700">{new Date(fecha).toLocaleDateString('es-AR')}</div>
+    <Modal open={true} onClose={onClose} title="Solicitar día">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Fecha</label>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-700">
+            {new Date(fecha).toLocaleDateString('es-AR')}
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Capitán</label>
-            <div className="text-gray-700">{capitanNombre}</div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Capitán</label>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-700">
+            {capitanNombre}
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Equipo</label>
-            <div className="text-gray-700">{capitanEquipo || 'Sin equipo asignado'}</div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Equipo</label>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-700">
+            {capitanEquipo || 'Sin equipo asignado'}
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Turno</label>
-            <select
-              value={turnoPreferencia}
-              onChange={(e) => setTurnoPreferencia(e.target.value as PreferenciaTurno)}
-              className="w-full border rounded px-3 py-2"
-            >
-              <option value="cualquiera">Cualquiera Disponible</option>
-              <option value="maniana">Mañana</option>
-              <option value="tarde">Tarde</option>
-            </select>
-          </div>
+        <Select
+          label="Turno"
+          value={turnoPreferencia}
+          onChange={(e) => setTurnoPreferencia(e.target.value as PreferenciaTurno)}
+          options={TURNOS_OPCIONES}
+        />
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Motivo</label>
-            <select
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value as Motivo)}
-              className="w-full border rounded px-3 py-2"
-            >
-              <option value="amistoso">Amistoso</option>
-              <option value="entrenamiento">Entrenamiento</option>
-              <option value="clases">Clases</option>
-              <option value="torneo">Torneo</option>
-            </select>
-          </div>
+        <Select
+          label="Motivo"
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value as Motivo)}
+          options={MOTIVOS_OPCIONES}
+        />
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Equipo rival</label>
-            <input
-              type="text"
-              value={equipoRival}
-              onChange={(e) => setEquipoRival(e.target.value)}
-              className="w-full border rounded px-3 py-2"
-              required
-            />
-          </div>
+        <Input
+          label="Equipo rival"
+          value={equipoRival}
+          onChange={(e) => setEquipoRival(e.target.value)}
+          required
+          placeholder="Nombre del equipo rival"
+          autoComplete="off"
+        />
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Observaciones</label>
-            <textarea
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-              className="w-full border rounded px-3 py-2"
-              rows={3}
-            />
-          </div>
+        <Textarea
+          label="Observaciones"
+          value={observaciones}
+          onChange={(e) => setObservaciones(e.target.value)}
+          rows={3}
+          placeholder="Detalles adicionales (opcional)"
+        />
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border rounded hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
-            >
-              {loading ? 'Enviando...' : 'Solicitar'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex gap-2 pt-2">
+          <Button variant="secondary" onClick={onClose} className="flex-1">
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={loading} className="flex-1">
+            {loading ? 'Enviando...' : 'Solicitar'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 };

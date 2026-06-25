@@ -17,9 +17,61 @@ setGlobalOptions({ region: 'us-central1' });
 const brevoApiKey = defineSecret('BREVO_API_KEY');
 
 const CANCHAS = [1, 2, 3, 4, 5];
+const CANCHAS_SET = new Set(CANCHAS);
 
 type Turno = 'maniana' | 'tarde';
 type Rol = 'admin' | 'capitan' | 'subcapitan';
+
+const TURNOS_VALIDOS: Turno[] = ['maniana', 'tarde'];
+const TURNOS_AMBOS_VALIDOS: Array<Turno | 'ambos'> = ['maniana', 'tarde', 'ambos'];
+const ROLES_VALIDOS: Rol[] = ['admin', 'capitan', 'subcapitan'];
+const TIPOS_BLOQUEO = ['dia', 'turno', 'rango'];
+const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const validarFecha = (fecha: string, fieldName: string): void => {
+  if (!fecha || typeof fecha !== 'string' || !FECHA_REGEX.test(fecha)) {
+    throw new HttpsError('invalid-argument', `${fieldName} debe ser una fecha válida (YYYY-MM-DD).`);
+  }
+  if (Number.isNaN(new Date(`${fecha}T00:00:00`).getTime())) {
+    throw new HttpsError('invalid-argument', `${fieldName} no es una fecha válida.`);
+  }
+};
+
+const validarCanchas = (canchas: unknown): number[] => {
+  if (!Array.isArray(canchas)) {
+    throw new HttpsError('invalid-argument', 'canchas debe ser un array.');
+  }
+  if (canchas.length === 0) {
+    throw new HttpsError('invalid-argument', 'Debe seleccionar al menos una cancha.');
+  }
+  for (const c of canchas) {
+    if (typeof c !== 'number' || !CANCHAS_SET.has(c)) {
+      throw new HttpsError('invalid-argument', `Cancha inválida: ${c}. Debe ser un número del 1 al 5.`);
+    }
+  }
+  return canchas as number[];
+};
+
+const validarString = (value: unknown, fieldName: string, opts?: { minLength?: number; maxLength?: number; pattern?: RegExp; required?: boolean }): void => {
+  const required = opts?.required !== false;
+  if (value === undefined || value === null || value === '') {
+    if (required) throw new HttpsError('invalid-argument', `${fieldName} es obligatorio.`);
+    return;
+  }
+  if (typeof value !== 'string') {
+    throw new HttpsError('invalid-argument', `${fieldName} debe ser un texto.`);
+  }
+  const trimmed = value.trim();
+  if (opts?.minLength && trimmed.length < opts.minLength) {
+    throw new HttpsError('invalid-argument', `${fieldName} debe tener al menos ${opts.minLength} caracteres.`);
+  }
+  if (opts?.maxLength && trimmed.length > opts.maxLength) {
+    throw new HttpsError('invalid-argument', `${fieldName} no debe exceder ${opts.maxLength} caracteres.`);
+  }
+  if (opts?.pattern && !opts.pattern.test(trimmed)) {
+    throw new HttpsError('invalid-argument', `${fieldName} tiene un formato inválido.`);
+  }
+};
 
 interface UsuarioInput {
   username: string;
@@ -129,23 +181,34 @@ export const createUser = onCall<UsuarioInput & { password: string }, Promise<{ 
       const data = request.data;
 
       // Validar username
-      if (!data.username || typeof data.username !== 'string') {
-        throw new HttpsError('invalid-argument', 'El nombre de usuario es obligatorio.');
-      }
+      validarString(data.username, 'username', { required: true, minLength: 2, maxLength: 30, pattern: /^[a-z]+$/ });
 
       const username = data.username.toLowerCase().trim();
 
-      if (username.length < 2) {
-        throw new HttpsError('invalid-argument', 'El nombre de usuario debe tener al menos 2 caracteres.');
+      // Validar contraseña
+      if (!data.password || typeof data.password !== 'string') {
+        throw new HttpsError('invalid-argument', 'La contraseña es obligatoria.');
       }
-
-      // Validar que solo contenga letras
-      if (!/^[a-z]+$/.test(username)) {
-        throw new HttpsError('invalid-argument', 'El nombre de usuario solo puede contener letras minúsculas.');
-      }
-
-      if (!data.password || data.password.length < 6) {
+      if (data.password.length < 6) {
         throw new HttpsError('invalid-argument', 'La contraseña debe tener al menos 6 caracteres.');
+      }
+      if (data.password.length > 128) {
+        throw new HttpsError('invalid-argument', 'La contraseña no debe exceder 128 caracteres.');
+      }
+
+      // Validar role
+      if (!data.role || !ROLES_VALIDOS.includes(data.role)) {
+        throw new HttpsError('invalid-argument', `role inválido. Debe ser: ${ROLES_VALIDOS.join(', ')}`);
+      }
+
+      // Validar displayName si se provee
+      if (data.displayName) {
+        validarString(data.displayName, 'displayName', { required: false, maxLength: 100 });
+      }
+
+      // Validar equipo si se provee
+      if (data.equipo) {
+        validarString(data.equipo, 'equipo', { required: false, maxLength: 100 });
       }
 
       // Verificar unicidad del username
@@ -161,13 +224,6 @@ export const createUser = onCall<UsuarioInput & { password: string }, Promise<{ 
         throw new HttpsError('invalid-argument', 'Formato de email inválido generado.');
       }
 
-      console.log('Creating user with:', {
-        username,
-        internalEmail,
-        hasPassword: !!data.password,
-        referenceEmail: data.email || '',
-      });
-
       const finalDisplayName = (data.displayName && data.displayName.trim()) 
         ? data.displayName.trim() 
         : username;
@@ -182,7 +238,7 @@ export const createUser = onCall<UsuarioInput & { password: string }, Promise<{ 
       try {
         user = await auth.createUser(createUserData);
       } catch (err: any) {
-        console.error('Auth creation failed:', err, 'with data:', createUserData);
+        console.error('Auth creation failed:', err.code);
         if (err.code?.includes('email-already-exists')) {
           throw new HttpsError('already-exists', 'Ya existe un usuario con ese username.');
         }
@@ -227,9 +283,24 @@ export const updateUser = onCall<
 
     const { uid, username, ...data } = request.data;
 
-    if (!uid) {
+    if (!uid || typeof uid !== 'string') {
       throw new HttpsError('invalid-argument', 'El uid del usuario es obligatorio.');
     }
+
+    // Validar username si se está cambiando
+    if (username) {
+      validarString(username, 'username', { required: true, minLength: 2, maxLength: 30, pattern: /^[a-z]+$/ });
+    }
+
+    // Validar role si se está cambiando
+    if (data.role && !ROLES_VALIDOS.includes(data.role)) {
+      throw new HttpsError('invalid-argument', `role inválido. Debe ser: ${ROLES_VALIDOS.join(', ')}`);
+    }
+
+    // Validar campos de texto si se proveen
+    if (data.displayName !== undefined) validarString(data.displayName, 'displayName', { required: false, maxLength: 100 });
+    if (data.equipo !== undefined) validarString(data.equipo, 'equipo', { required: false, maxLength: 100 });
+    if (data.email !== undefined) validarString(data.email, 'email', { required: false, maxLength: 200 });
 
     const userDoc = await db.collection('usuarios').doc(uid).get();
     if (!userDoc.exists) {
@@ -239,12 +310,6 @@ export const updateUser = onCall<
     // Si se está cambiando el username, verificar unicidad
     if (username) {
       const cleanUsername = username.toLowerCase().trim();
-      if (cleanUsername.length < 2) {
-        throw new HttpsError('invalid-argument', 'El nombre de usuario debe tener al menos 2 caracteres.');
-      }
-      if (!/^[a-z]+$/.test(cleanUsername)) {
-        throw new HttpsError('invalid-argument', 'El nombre de usuario solo puede contener letras minúsculas.');
-      }
 
       const existing = await db.collection('usuarios').where('username', '==', cleanUsername).get();
       const isTakenByOther = existing.docs.some(doc => doc.id !== uid);
@@ -263,7 +328,7 @@ export const updateUser = onCall<
       try {
         await auth.updateUser(uid, authUpdate);
       } catch (err: any) {
-        console.error('Auth update failed:', err, 'with data:', authUpdate);
+        console.error('Auth update failed:', err.code);
         if (err.code?.includes('email-already-exists')) {
           throw new HttpsError('already-exists', 'Ya existe otro usuario con ese nombre de usuario.');
         }
@@ -309,8 +374,16 @@ export const setPassword = onCall<{ uid: string; newPassword: string }, Promise<
 
     const { uid, newPassword } = request.data;
 
-    if (!newPassword || newPassword.length < 6) {
+    validarString(uid, 'uid', { required: true, minLength: 10, maxLength: 200 });
+
+    if (!newPassword || typeof newPassword !== 'string') {
+      throw new HttpsError('invalid-argument', 'La nueva contraseña es obligatoria.');
+    }
+    if (newPassword.length < 6) {
       throw new HttpsError('invalid-argument', 'La contraseña debe tener al menos 6 caracteres.');
+    }
+    if (newPassword.length > 128) {
+      throw new HttpsError('invalid-argument', 'La contraseña no debe exceder 128 caracteres.');
     }
 
     await auth.updateUser(uid, { password: newPassword });
@@ -327,6 +400,31 @@ export const createBloqueo = onCall<BloqueoInput, Promise<{ id: string }>>(
     await assertAdmin(request.auth.uid);
 
     const { tipo, fechaInicio, fechaFin, turno, cancha, motivo } = request.data;
+
+    // Validar tipo
+    if (!TIPOS_BLOQUEO.includes(tipo)) {
+      throw new HttpsError('invalid-argument', `tipo inválido. Debe ser: ${TIPOS_BLOQUEO.join(', ')}`);
+    }
+
+    // Validar fechas
+    validarFecha(fechaInicio, 'fechaInicio');
+    validarFecha(fechaFin, 'fechaFin');
+    if (fechaInicio > fechaFin) {
+      throw new HttpsError('invalid-argument', 'fechaInicio no puede ser posterior a fechaFin.');
+    }
+
+    // Validar turno
+    if (!TURNOS_AMBOS_VALIDOS.includes(turno)) {
+      throw new HttpsError('invalid-argument', `turno inválido. Debe ser: ${TURNOS_AMBOS_VALIDOS.join(', ')}`);
+    }
+
+    // Validar cancha (null = todas, o número 1-5)
+    if (cancha !== null && (typeof cancha !== 'number' || !CANCHAS_SET.has(cancha))) {
+      throw new HttpsError('invalid-argument', 'cancha inválida. Debe ser null o un número del 1 al 5.');
+    }
+
+    // Validar motivo
+    validarString(motivo, 'motivo', { required: true, maxLength: 200 });
 
     const bloqueoRef = db.collection('bloqueos').doc();
     await bloqueoRef.set({
@@ -647,8 +745,14 @@ export const changeOwnPassword = onCall<{ newPassword: string }, void>(
       throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
     const { newPassword } = request.data;
-    if (!newPassword || newPassword.length < 6) {
+    if (!newPassword || typeof newPassword !== 'string') {
+      throw new HttpsError('invalid-argument', 'La nueva contraseña es obligatoria.');
+    }
+    if (newPassword.length < 6) {
       throw new HttpsError('invalid-argument', 'La contraseña debe tener al menos 6 caracteres.');
+    }
+    if (newPassword.length > 128) {
+      throw new HttpsError('invalid-argument', 'La contraseña no debe exceder 128 caracteres.');
     }
     await auth.updateUser(request.auth.uid, { password: newPassword });
   }
@@ -666,9 +770,8 @@ export const rechazarReserva = onCall<{ reservaId: string; motivo: string }, Pro
     await assertAdmin(request.auth.uid);
 
     const { reservaId, motivo } = request.data;
-    if (!motivo || !motivo.trim()) {
-      throw new HttpsError('invalid-argument', 'El motivo del rechazo es obligatorio.');
-    }
+    validarString(reservaId, 'reservaId', { required: true, minLength: 5, maxLength: 200 });
+    validarString(motivo, 'motivo', { required: true, maxLength: 500 });
 
     // Get the reservation
     const reservaSnap = await db.collection('reservas').doc(reservaId).get();
@@ -769,6 +872,17 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
 
     const { reservaId, turno, canchas } = request.data;
 
+    // Validar reservaId
+    validarString(reservaId, 'reservaId', { required: true, minLength: 5, maxLength: 200 });
+
+    // Validar turno
+    if (!TURNOS_VALIDOS.includes(turno)) {
+      throw new HttpsError('invalid-argument', `turno inválido. Debe ser: ${TURNOS_VALIDOS.join(', ')}`);
+    }
+
+    // Validar canchas
+    const canchasValidadas = validarCanchas(canchas);
+
     // Get the reservation
     const reservaSnap = await db.collection('reservas').doc(reservaId).get();
     if (!reservaSnap.exists) {
@@ -784,7 +898,7 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
     await db.collection('reservas').doc(reservaId).update({
       estado: 'reservado',
       turno,
-      canchas,
+      canchas: canchasValidadas,
       aprobadoEn: Timestamp.now(),
       aprobadoPor: request.auth.uid,
     });

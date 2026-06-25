@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../hooks/useAuth';
@@ -21,7 +21,7 @@ export const CalendarioCapitan = ({ fechaInicio, fechaFin }: CalendarioCapitanPr
   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
 
   // Escuchar reservas
-  useState(() => {
+  useEffect(() => {
     const q = query(
       collection(db, 'reservas'),
       where('fecha', '>=', fechaInicio),
@@ -31,10 +31,10 @@ export const CalendarioCapitan = ({ fechaInicio, fechaFin }: CalendarioCapitanPr
       setReservas(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reserva)));
     });
     return unsubscribe;
-  });
+  }, [fechaInicio, fechaFin]);
 
   // Escuchar slots bloqueados (a nivel cancha)
-  useState(() => {
+  useEffect(() => {
     const q = query(
       collection(db, 'slotsBloqueados'),
       where('fecha', '>=', fechaInicio),
@@ -44,7 +44,7 @@ export const CalendarioCapitan = ({ fechaInicio, fechaFin }: CalendarioCapitanPr
       setSlotsBloqueados(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SlotBloqueado)));
     });
     return unsubscribe;
-  });
+  }, [fechaInicio, fechaFin]);
 
   const handleCancelar = async (reservaId: string) => {
     if (!confirm('¿Estás seguro de cancelar esta solicitud?')) return;

@@ -60,5 +60,5 @@ export const coloresSlot: Record<EstadoSlot, string> = {
   disponible: 'bg-white border-gray-200 hover:bg-gray-50 text-gray-900',
   solicitado: 'bg-yellow-300 border-yellow-400 text-yellow-900 hover:bg-yellow-400',
   reservado: 'bg-green-600 border-green-700 text-white hover:bg-green-700',
-  bloqueado: 'bg-gray-300 border-gray-400 text-gray-600 cursor-not-allowed',
+  bloqueado: 'bg-gray-300 border-gray-400 text-gray-800 cursor-not-allowed',
 };
