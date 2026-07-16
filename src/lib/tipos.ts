@@ -16,8 +16,11 @@ export interface Usuario {
   role: Rol;
   equipo: string;
   activo: boolean;
+  primerLogin: boolean;
   createdAt: Date;
   createdBy: string;
+  updatedAt?: Date;
+  updatedBy?: string;
 }
 
 export interface UsuarioInput {

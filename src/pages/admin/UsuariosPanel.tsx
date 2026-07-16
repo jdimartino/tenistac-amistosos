@@ -35,9 +35,10 @@ interface UsuarioFormProps {
   onSubmit: (e: FormEvent) => void;
   onCancel: () => void;
   onSetPassword: (uid: string) => void;
+  onAdminReset: (uid: string) => void;
 }
 
-const UsuarioForm = ({ form, editingUid, submitting, error, success, onFormChange, onSubmit, onCancel, onSetPassword }: UsuarioFormProps) => (
+const UsuarioForm = ({ form, editingUid, submitting, error, success, onFormChange, onSubmit, onCancel, onSetPassword, onAdminReset }: UsuarioFormProps) => (
   <form onSubmit={onSubmit} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
     <h3 className="mb-4 text-lg font-semibold text-gray-900">
       {editingUid ? 'Editar usuario' : 'Nuevo usuario'}
@@ -53,11 +54,12 @@ const UsuarioForm = ({ form, editingUid, submitting, error, success, onFormChang
         required
       />
       <Input
-        label="Correo (referencia - opcional)"
+        label="Correo (obligatorio - se envían las credenciales)"
         type="email"
         value={form.email}
         onChange={(e) => onFormChange({ ...form, email: e.target.value })}
-        placeholder="Opcional"
+        placeholder="correo@ejemplo.com"
+        required
       />
       <Input
         label="Nombre"
@@ -85,9 +87,12 @@ const UsuarioForm = ({ form, editingUid, submitting, error, success, onFormChang
         />
       )}
       {editingUid && (
-        <div className="sm:col-span-2">
+        <div className="sm:col-span-2 space-y-2">
           <Button type="button" variant="secondary" onClick={() => onSetPassword(editingUid)} className="w-full">
             Asignar nueva contraseña
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => onAdminReset(editingUid)} className="w-full">
+            Generar y enviar por correo
           </Button>
         </div>
       )}
@@ -139,10 +144,11 @@ const UsuarioCard = ({ usuario: u, onEdit, onDelete, deleting }: UsuarioCardProp
 );
 
 export const UsuariosPanel = () => {
-  const { usuarios, loading, create, update, remove, setPassword } = useUsuarios();
+  const { usuarios, loading, create, update, remove, setPassword, adminResetPassword } = useUsuarios();
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [editingUid, setEditingUid] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState<string | null>(null);
+  const [setPasswordSuccess, setSetPasswordSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -166,6 +172,7 @@ export const UsuariosPanel = () => {
     setForm(INITIAL_FORM);
     setEditingUid(null);
     setNewPassword(null);
+    setSetPasswordSuccess(null);
     setShowForm(false);
     setError(null);
     setSuccess(null);
@@ -180,16 +187,29 @@ export const UsuariosPanel = () => {
     if (!cleanUsername) { setError('El nombre de usuario es obligatorio.'); setSubmitting(false); return; }
     if (cleanUsername.length < 2) { setError('El nombre de usuario debe tener al menos 2 caracteres.'); setSubmitting(false); return; }
     if (!/^[a-z]+$/.test(cleanUsername)) { setError('El nombre de usuario solo puede contener letras minúsculas.'); setSubmitting(false); return; }
+    if (!form.email || !form.email.trim()) { setError('El correo es obligatorio para enviar las credenciales.'); setSubmitting(false); return; }
     if (!editingUid && (!form.password || form.password.length < 6)) { setError('La contraseña debe tener al menos 6 caracteres.'); setSubmitting(false); return; }
 
     try {
       if (editingUid) {
+        const usuarioPrev = usuarios.find((u) => u.uid === editingUid);
         await update(editingUid, { username: cleanUsername, email: form.email || '', displayName: form.displayName || '', role: form.role, equipo: form.equipo || '' });
+
+        const cambios: string[] = [];
+        if (usuarioPrev && usuarioPrev.role !== form.role) {
+          const roles: Record<string, string> = { admin: 'Admin', capitan: 'Capitán', subcapitan: 'Sub-Capitán' };
+          cambios.push(`Rol: ${roles[usuarioPrev.role]} → ${roles[form.role]}`);
+        }
+        if (usuarioPrev && usuarioPrev.username !== cleanUsername) cambios.push(`Usuario: @${usuarioPrev.username} → @${cleanUsername}`);
+        if (usuarioPrev && (usuarioPrev.displayName || '') !== (form.displayName || '')) cambios.push('Nombre actualizado');
+        if (usuarioPrev && (usuarioPrev.equipo || '') !== (form.equipo || '')) cambios.push(`Equipo: ${usuarioPrev.equipo || '(sin equipo)'} → ${form.equipo || '(sin equipo)'}`);
+
+        setSuccess(cambios.length > 0 ? `Usuario actualizado: ${cambios.join(', ')}` : 'Usuario actualizado correctamente');
       } else {
         await create({ username: cleanUsername, email: form.email || '', displayName: form.displayName || '', role: form.role, equipo: form.equipo || '', password: form.password });
+        setSuccess(`Usuario "${cleanUsername}" creado correctamente`);
       }
-      setSuccess(editingUid ? 'Usuario actualizado correctamente' : 'Usuario creado correctamente');
-      setTimeout(() => resetForm(), 1200);
+      setTimeout(() => resetForm(), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar el usuario.');
     } finally {
@@ -208,9 +228,26 @@ export const UsuariosPanel = () => {
     if (!newPass || newPass.length < 6) { alert('La contraseña debe tener al menos 6 caracteres'); return; }
     try {
       const result = await setPassword(uid, newPass);
+      const usuario = usuarios.find((u) => u.uid === uid);
+      const nombre = usuario?.displayName || usuario?.username || uid;
+      setSetPasswordSuccess(`Contraseña actualizada correctamente para "${nombre}"`);
       setNewPassword(result);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Error al cambiar la contraseña');
+    }
+  };
+
+  const handleAdminResetPassword = async (uid: string) => {
+    const usuario = usuarios.find((u) => u.uid === uid);
+    const nombre = usuario?.displayName || usuario?.username || uid;
+    const email = usuario?.email;
+    if (!confirm(`¿Generar una nueva contraseña y enviarla por correo a ${email || '(sin correo)'}?`)) return;
+    try {
+      const newPass = await adminResetPassword(uid);
+      setSetPasswordSuccess(`Contraseña restablecida para "${nombre}" y enviada por correo a ${email || '(sin correo)'}`);
+      setNewPassword(newPass);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al restablecer la contraseña');
     }
   };
 
@@ -244,7 +281,14 @@ export const UsuariosPanel = () => {
           onSubmit={handleSubmit}
           onCancel={resetForm}
           onSetPassword={handleSetPassword}
+          onAdminReset={handleAdminResetPassword}
         />
+      )}
+
+      {setPasswordSuccess && (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+          <p className="font-medium">{setPasswordSuccess}</p>
+        </div>
       )}
 
       {newPassword && (
@@ -293,6 +337,7 @@ export const UsuariosPanel = () => {
                   onSubmit={handleSubmit}
                   onCancel={resetForm}
                   onSetPassword={handleSetPassword}
+          onAdminReset={handleAdminResetPassword}
                 />
               </div>
             )}

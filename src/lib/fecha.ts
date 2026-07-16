@@ -2,7 +2,19 @@ export const formatoISO = (d: Date): string => {
   return d.toISOString().split('T')[0];
 };
 
-export const hoy = (): string => formatoISO(new Date());
+export const hoy = (): string => {
+  const formatter = new Intl.DateTimeFormat('es-VE', {
+    timeZone: 'America/Caracas',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(new Date());
+  const year = parts.find((p) => p.type === 'year')!.value;
+  const month = parts.find((p) => p.type === 'month')!.value;
+  const day = parts.find((p) => p.type === 'day')!.value;
+  return `${year}-${month}-${day}`;
+};
 
 export const sumarDias = (fecha: string, dias: number): string => {
   const d = new Date(`${fecha}T00:00:00`);
@@ -18,18 +30,18 @@ export const diferenciaDias = (a: string, b: string): number => {
 
 export const nombreDia = (fecha: string): string => {
   const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-  const d = new Date(`${fecha}T00:00:00`);
+  const d = new Date(`${fecha}T12:00:00`);
   return dias[d.getDay()];
 };
 
 export const nombreDiaCompleto = (fecha: string): string => {
   const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-  const d = new Date(`${fecha}T00:00:00`);
+  const d = new Date(`${fecha}T12:00:00`);
   return dias[d.getDay()];
 };
 
 export const esFechaValida = (fecha: string): boolean => {
-  return /^\d{4}-\d{2}-\d{2}$/.test(fecha) && !Number.isNaN(new Date(`${fecha}T00:00:00`).getTime());
+  return /^\d{4}-\d{2}-\d{2}$/.test(fecha) && !Number.isNaN(new Date(`${fecha}T12:00:00`).getTime());
 };
 
 export const generarRangoDias = (inicio: string, fin: string): string[] => {
@@ -43,7 +55,7 @@ export const generarRangoDias = (inicio: string, fin: string): string[] => {
 };
 
 export const inicioSemana = (fecha: string): string => {
-  const d = new Date(`${fecha}T00:00:00`);
+  const d = new Date(`${fecha}T12:00:00`);
   const diaSemana = d.getDay();
   const offset = diaSemana === 0 ? -6 : 1 - diaSemana;
   return sumarDias(fecha, offset);

@@ -9,6 +9,7 @@ const createUserFn = httpsCallable<(UsuarioInput & { password: string }), void>(
 const updateUserFn = httpsCallable<{ uid: string } & Partial<UsuarioInput>, void>(functions, 'updateUser');
 const deleteUserFn = httpsCallable<{ uid: string }, void>(functions, 'deleteUser');
 const setPasswordFn = httpsCallable<{ uid: string; newPassword: string }, { password: string }>(functions, 'setPassword');
+const adminResetPasswordFn = httpsCallable<{ uid: string }, { newPassword: string }>(functions, 'adminResetPassword');
 
 export const useUsuarios = () => {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -45,5 +46,10 @@ export const useUsuarios = () => {
     return result.data.password;
   }, []);
 
-  return { usuarios, loading, error, create, update, remove, setPassword };
+  const adminResetPassword = useCallback(async (uid: string) => {
+    const result = await adminResetPasswordFn({ uid });
+    return result.data.newPassword;
+  }, []);
+
+  return { usuarios, loading, error, create, update, remove, setPassword, adminResetPassword };
 };

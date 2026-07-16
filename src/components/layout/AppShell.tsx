@@ -195,6 +195,9 @@ const NotificationBell = () => {
 export const AppShell = ({ children }: AppShellProps) => {
   const { usuario, logout } = useAuth();
   const [showCambiar, setShowCambiar] = useState(false);
+  const [bannerPrimerLoginCerrado, setBannerPrimerLoginCerrado] = useState(false);
+
+  const mostrarBannerPrimerLogin = usuario?.primerLogin === true && !bannerPrimerLoginCerrado;
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
@@ -231,6 +234,34 @@ export const AppShell = ({ children }: AppShellProps) => {
           </div>
         </div>
       </header>
+
+      {mostrarBannerPrimerLogin && (
+        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-3">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+            <p className="text-sm text-yellow-800">
+              <span className="font-semibold">Recordatorio:</span> te recomendamos cambiar tu contraseña la primera vez que ingresás.
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                size="xs"
+                onClick={() => {
+                  setBannerPrimerLoginCerrado(true);
+                  setShowCambiar(true);
+                }}
+              >
+                Cambiar ahora
+              </Button>
+              <button
+                type="button"
+                onClick={() => setBannerPrimerLoginCerrado(true)}
+                className="text-xs text-yellow-600 hover:text-yellow-800 underline"
+              >
+                Ahora no
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <NavTabs />
 

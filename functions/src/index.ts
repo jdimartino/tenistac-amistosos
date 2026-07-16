@@ -170,7 +170,13 @@ const expandirBloqueo = async (
   await batch.commit();
 };
 
-export const createUser = onCall<UsuarioInput & { password: string }, Promise<{ uid: string }>>(
+export const createUser = onCall<
+  UsuarioInput & { password: string },
+  Promise<{ uid: string }>
+>(
+  {
+    secrets: [brevoApiKey],
+  },
   async (request) => {
     try {
       if (!request.auth) {
@@ -210,6 +216,12 @@ export const createUser = onCall<UsuarioInput & { password: string }, Promise<{ 
       if (data.equipo) {
         validarString(data.equipo, 'equipo', { required: false, maxLength: 100 });
       }
+
+      // Validar email (obligatorio para poder enviar credenciales)
+      if (!data.email || !data.email.trim()) {
+        throw new HttpsError('invalid-argument', 'El correo es obligatorio para enviar las credenciales.');
+      }
+      validarString(data.email, 'email', { required: true, maxLength: 200 });
 
       // Verificar unicidad del username
       const existing = await db.collection('usuarios').where('username', '==', username).get();
@@ -254,8 +266,47 @@ export const createUser = onCall<UsuarioInput & { password: string }, Promise<{ 
         role: data.role,
         equipo: data.equipo || '',
         activo: true,
+        primerLogin: true,
         createdAt: Timestamp.now(),
         createdBy: request.auth.uid,
+      });
+
+      console.log(`Usuario creado: ${user.uid} (${username}) por ${request.auth.uid}`);
+
+      const client = new BrevoClient({ apiKey: brevoApiKey.value() });
+      try {
+        await client.transactionalEmails.sendTransacEmail({
+          sender: { name: 'Club Táchira', email: 'notificaciones@tenistac.com' },
+          to: [{ email: data.email }],
+          subject: '[TenisTac] Tus credenciales de acceso',
+          htmlContent: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #16a34a;">Bienvenido a TenisTac</h2>
+              <p>Hola ${finalDisplayName},</p>
+              <p>Tu cuenta ha sido creada. Estas son tus credenciales de acceso:</p>
+              <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+                <p><strong>Usuario:</strong> ${username}</p>
+                <p><strong>Contraseña:</strong> ${data.password}</p>
+              </div>
+              <p>Ingresá en <a href="https://canchas.tenistac.com">canchas.tenistac.com</a></p>
+              <p style="color: #dc2626; font-size: 12px;">Por seguridad, te recomendamos cambiar tu contraseña la primera vez que ingreses.</p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+              <p style="color: #9ca3af; font-size: 12px;">Club Táchira — Solicitud de Canchas</p>
+            </div>
+          `,
+        });
+        console.log(`Email de credenciales enviado a ${data.email}`);
+      } catch (err: unknown) {
+        console.error('Error enviando email de credenciales:', err);
+      }
+
+      await db.collection('logs').add({
+        tipo: 'usuario_creado',
+        usuarioId: user.uid,
+        username,
+        role: data.role,
+        realizadoPor: request.auth.uid,
+        realizadoEn: Timestamp.now(),
       });
 
       return { uid: user.uid };
@@ -339,10 +390,20 @@ export const updateUser = onCall<
       }
     }
 
-    const updateData: any = { ...data };
+    const updateData: any = { ...data, updatedAt: Timestamp.now(), updatedBy: request.auth.uid };
     if (username) updateData.username = username.toLowerCase().trim();
 
     await db.collection('usuarios').doc(uid).update(updateData);
+
+    console.log(`Usuario ${uid} actualizado por ${request.auth.uid}:`, JSON.stringify(updateData));
+
+    await db.collection('logs').add({
+      tipo: 'usuario_actualizado',
+      usuarioId: uid,
+      cambios: updateData,
+      realizadoPor: request.auth.uid,
+      realizadoEn: Timestamp.now(),
+    });
   } catch (error: any) {
     console.error('updateUser error:', error);
 
@@ -361,8 +422,23 @@ export const deleteUser = onCall<{ uid: string }, void>(async (request) => {
   await assertAdmin(request.auth.uid);
 
   const { uid } = request.data;
+
+  const userDoc = await db.collection('usuarios').doc(uid).get();
+  const userData = userDoc.data();
+
   await auth.deleteUser(uid);
   await db.collection('usuarios').doc(uid).delete();
+
+  console.log(`Usuario eliminado: ${uid} (${userData?.username || '?'}) por ${request.auth.uid}`);
+
+  await db.collection('logs').add({
+    tipo: 'usuario_eliminado',
+    usuarioId: uid,
+    username: userData?.username || null,
+    role: userData?.role || null,
+    realizadoPor: request.auth.uid,
+    realizadoEn: Timestamp.now(),
+  });
 });
 
 export const setPassword = onCall<{ uid: string; newPassword: string }, Promise<{ password: string }>>(
@@ -387,6 +463,15 @@ export const setPassword = onCall<{ uid: string; newPassword: string }, Promise<
     }
 
     await auth.updateUser(uid, { password: newPassword });
+
+    console.log(`Contraseña actualizada para usuario ${uid} por ${request.auth.uid}`);
+
+    await db.collection('logs').add({
+      tipo: 'usuario_password',
+      usuarioId: uid,
+      realizadoPor: request.auth.uid,
+      realizadoEn: Timestamp.now(),
+    });
 
     return { password: newPassword };
   }
@@ -755,6 +840,91 @@ export const changeOwnPassword = onCall<{ newPassword: string }, void>(
       throw new HttpsError('invalid-argument', 'La contraseña no debe exceder 128 caracteres.');
     }
     await auth.updateUser(request.auth.uid, { password: newPassword });
+    await db.collection('usuarios').doc(request.auth.uid).update({
+      primerLogin: false,
+      updatedAt: Timestamp.now(),
+      updatedBy: request.auth.uid,
+    });
+  }
+);
+
+const generarPasswordSegura = (length: number): string => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+};
+
+export const adminResetPassword = onCall<
+  { uid: string },
+  Promise<{ newPassword: string }>
+>(
+  {
+    secrets: [brevoApiKey],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    await assertAdmin(request.auth.uid);
+
+    const { uid } = request.data;
+    if (!uid || typeof uid !== 'string') {
+      throw new HttpsError('invalid-argument', 'El uid del usuario es obligatorio.');
+    }
+
+    const userDoc = await db.collection('usuarios').doc(uid).get();
+    if (!userDoc.exists) {
+      throw new HttpsError('not-found', 'El usuario no existe.');
+    }
+    const userData = userDoc.data()!;
+
+    const newPassword = generarPasswordSegura(12);
+
+    await auth.updateUser(uid, { password: newPassword });
+
+    console.log(`Contraseña restablecida para usuario ${uid} por ${request.auth.uid}`);
+
+    if (userData.email && typeof userData.email === 'string' && userData.email.trim()) {
+      const client = new BrevoClient({ apiKey: brevoApiKey.value() });
+      try {
+        await client.transactionalEmails.sendTransacEmail({
+          sender: { name: 'Club Táchira', email: 'notificaciones@tenistac.com' },
+          to: [{ email: userData.email }],
+          subject: '[TenisTac] Tu contraseña ha sido restablecida',
+          htmlContent: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #16a34a;">Contraseña restablecida</h2>
+              <p>Hola ${userData.displayName || userData.username},</p>
+              <p>Tu contraseña ha sido restablecida por un administrador. Estas son tus nuevas credenciales:</p>
+              <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+                <p><strong>Usuario:</strong> ${userData.username}</p>
+                <p><strong>Nueva contraseña:</strong> ${newPassword}</p>
+              </div>
+              <p>Ingresá en <a href="https://canchas.tenistac.com">canchas.tenistac.com</a></p>
+              <p style="color: #dc2626; font-size: 12px;">Por seguridad, te recomendamos cambiar tu contraseña después de iniciar sesión.</p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+              <p style="color: #9ca3af; font-size: 12px;">Club Táchira — Solicitud de Canchas</p>
+            </div>
+          `,
+        });
+        console.log(`Email de restablecimiento enviado a ${userData.email}`);
+      } catch (err: unknown) {
+        console.error('Error enviando email de restablecimiento:', err);
+      }
+    }
+
+    await db.collection('logs').add({
+      tipo: 'usuario_password_reset',
+      usuarioId: uid,
+      username: userData.username,
+      realizadoPor: request.auth.uid,
+      realizadoEn: Timestamp.now(),
+    });
+
+    return { newPassword };
   }
 );
 
@@ -854,6 +1024,43 @@ export const rechazarReserva = onCall<{ reservaId: string; motivo: string }, Pro
       const errorMessage = err instanceof Error ? err.message : String(err);
       console.error('Error sending rejection email:', errorMessage);
     }
+
+    return { success: true };
+  }
+);
+
+// Delete a pending request directly WITHOUT notifying anyone (for mistaken requests)
+export const eliminarSolicitud = onCall<{ reservaId: string }, Promise<{ success: boolean }>>(
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    await assertAdmin(request.auth.uid);
+
+    const { reservaId } = request.data;
+    if (!reservaId || typeof reservaId !== 'string') {
+      throw new HttpsError('invalid-argument', 'El ID de la solicitud es obligatorio.');
+    }
+
+    const snap = await db.collection('reservas').doc(reservaId).get();
+    if (!snap.exists) {
+      throw new HttpsError('not-found', 'La solicitud no existe.');
+    }
+    const data = snap.data()!;
+
+    await db.collection('reservas').doc(reservaId).delete();
+
+    console.log(`Solicitud ${reservaId} eliminada por ${request.auth.uid} (sin notificación)`);
+
+    await db.collection('logs').add({
+      tipo: 'reserva_eliminada',
+      reservaId,
+      capitanUid: data.capitanUid ?? null,
+      capitanNombre: data.capitanNombre ?? null,
+      fecha: data.fecha ?? null,
+      realizadoPor: request.auth.uid,
+      realizadoEn: Timestamp.now(),
+    });
 
     return { success: true };
   }

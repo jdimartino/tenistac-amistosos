@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { AuthContext } from './auth';
 import type { Usuario } from '../lib/tipos';
@@ -14,26 +14,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeUser: (() => void) | null = null;
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setLoading(true);
       setError(null);
+
+      if (unsubscribeUser) {
+        unsubscribeUser();
+        unsubscribeUser = null;
+      }
+
       if (user) {
-        const snap = await getDoc(doc(db, 'usuarios', user.uid));
-        if (snap.exists()) {
-          setUsuario({ uid: snap.id, ...snap.data() } as Usuario);
-        } else {
-          setUsuario(null);
-          setError('Usuario no registrado en el sistema.');
-          await signOut(auth);
-        }
+        unsubscribeUser = onSnapshot(doc(db, 'usuarios', user.uid), (snap) => {
+          if (snap.exists()) {
+            setUsuario({ uid: snap.id, ...snap.data() } as Usuario);
+          } else {
+            setUsuario(null);
+            setError('Usuario no registrado en el sistema.');
+            signOut(auth);
+          }
+          setLoading(false);
+        }, (err) => {
+          setError(err.message);
+          setLoading(false);
+        });
+
         setFirebaseUser(user);
       } else {
         setFirebaseUser(null);
         setUsuario(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      if (unsubscribeUser) unsubscribeUser();
+    };
   }, []);
 
   const login = async (input: string, password: string) => {

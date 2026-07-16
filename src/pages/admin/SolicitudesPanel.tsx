@@ -26,6 +26,7 @@ export const SolicitudesPanel = () => {
   const [reservaEditando, setReservaEditando] = useState<Reserva | null>(null);
   const [reservaRechazando, setReservaRechazando] = useState<Reserva | null>(null);
   const [motivoRechazo, setMotivoRechazo] = useState('');
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(
@@ -69,6 +70,20 @@ export const SolicitudesPanel = () => {
       alert('Error al rechazar la solicitud');
     } finally {
       setRechazandoId(null);
+    }
+  };
+
+  const handleEliminar = async (r: Reserva) => {
+    if (!confirm(`¿Eliminar la solicitud de ${r.capitanNombre} (${r.fecha}) sin notificar?`)) return;
+    setEliminandoId(r.id);
+    try {
+      const eliminarFn = httpsCallable(functions, 'eliminarSolicitud');
+      await eliminarFn({ reservaId: r.id });
+    } catch (err) {
+      console.error('Error al eliminar:', err);
+      alert(err instanceof Error ? err.message : 'Error al eliminar la solicitud');
+    } finally {
+      setEliminandoId(null);
     }
   };
 
@@ -178,6 +193,9 @@ export const SolicitudesPanel = () => {
             </Button>
             <Button variant="danger" size="sm" onClick={() => { setReservaRechazando(r); setMotivoRechazo(''); }}>
               Rechazar
+            </Button>
+            <Button variant="danger" size="sm" onClick={() => handleEliminar(r)} disabled={eliminandoId === r.id}>
+              {eliminandoId === r.id ? 'Eliminando...' : 'Eliminar'}
             </Button>
           </div>
         </div>

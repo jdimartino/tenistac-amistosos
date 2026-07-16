@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.aprobarReserva = exports.rechazarReserva = exports.changeOwnPassword = exports.onReservaSolicitada = exports.sendEmailNotification = exports.backfillBloqueos = exports.updateBloqueo = exports.deleteBloqueo = exports.createBloqueo = exports.setPassword = exports.deleteUser = exports.updateUser = exports.createUser = void 0;
+exports.aprobarReserva = exports.eliminarSolicitud = exports.rechazarReserva = exports.adminResetPassword = exports.changeOwnPassword = exports.onReservaSolicitada = exports.sendEmailNotification = exports.backfillBloqueos = exports.updateBloqueo = exports.deleteBloqueo = exports.createBloqueo = exports.setPassword = exports.deleteUser = exports.updateUser = exports.createUser = void 0;
 const app_1 = require("firebase-admin/app");
 const auth_1 = require("firebase-admin/auth");
 const firestore_1 = require("firebase-admin/firestore");
@@ -15,16 +15,99 @@ const auth = (0, auth_1.getAuth)();
 (0, v2_1.setGlobalOptions)({ region: 'us-central1' });
 const brevoApiKey = (0, params_1.defineSecret)('BREVO_API_KEY');
 const CANCHAS = [1, 2, 3, 4, 5];
+const CANCHAS_SET = new Set(CANCHAS);
+const TURNOS_VALIDOS = ['maniana', 'tarde'];
+const TURNOS_AMBOS_VALIDOS = ['maniana', 'tarde', 'ambos'];
+const ROLES_VALIDOS = ['admin', 'capitan', 'subcapitan'];
+const TIPOS_BLOQUEO = ['dia', 'turno', 'rango'];
+const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const validarFecha = (fecha, fieldName) => {
+    if (!fecha || typeof fecha !== 'string' || !FECHA_REGEX.test(fecha)) {
+        throw new https_1.HttpsError('invalid-argument', `${fieldName} debe ser una fecha válida (YYYY-MM-DD).`);
+    }
+    if (Number.isNaN(new Date(`${fecha}T00:00:00`).getTime())) {
+        throw new https_1.HttpsError('invalid-argument', `${fieldName} no es una fecha válida.`);
+    }
+};
+const validarCanchas = (canchas) => {
+    if (!Array.isArray(canchas)) {
+        throw new https_1.HttpsError('invalid-argument', 'canchas debe ser un array.');
+    }
+    if (canchas.length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'Debe seleccionar al menos una cancha.');
+    }
+    for (const c of canchas) {
+        if (typeof c !== 'number' || !CANCHAS_SET.has(c)) {
+            throw new https_1.HttpsError('invalid-argument', `Cancha inválida: ${c}. Debe ser un número del 1 al 5.`);
+        }
+    }
+    return canchas;
+};
+const validarString = (value, fieldName, opts) => {
+    const required = opts?.required !== false;
+    if (value === undefined || value === null || value === '') {
+        if (required)
+            throw new https_1.HttpsError('invalid-argument', `${fieldName} es obligatorio.`);
+        return;
+    }
+    if (typeof value !== 'string') {
+        throw new https_1.HttpsError('invalid-argument', `${fieldName} debe ser un texto.`);
+    }
+    const trimmed = value.trim();
+    if (opts?.minLength && trimmed.length < opts.minLength) {
+        throw new https_1.HttpsError('invalid-argument', `${fieldName} debe tener al menos ${opts.minLength} caracteres.`);
+    }
+    if (opts?.maxLength && trimmed.length > opts.maxLength) {
+        throw new https_1.HttpsError('invalid-argument', `${fieldName} no debe exceder ${opts.maxLength} caracteres.`);
+    }
+    if (opts?.pattern && !opts.pattern.test(trimmed)) {
+        throw new https_1.HttpsError('invalid-argument', `${fieldName} tiene un formato inválido.`);
+    }
+};
 const assertAdmin = async (uid) => {
     const doc = await db.collection('usuarios').doc(uid).get();
     if (!doc.exists || doc.data()?.role !== 'admin') {
         throw new https_1.HttpsError('permission-denied', 'Solo los administradores pueden realizar esta acción.');
     }
 };
+const getAdminEmails = async () => {
+    const adminsSnap = await db.collection('usuarios').where('role', '==', 'admin').where('activo', '==', true).get();
+    return adminsSnap.docs
+        .map(doc => doc.data().email)
+        .filter(email => email && typeof email === 'string' && email.trim());
+};
+const sendAdminNotification = async (subject, htmlContent) => {
+    const adminEmails = await getAdminEmails();
+    if (adminEmails.length === 0) {
+        console.log('No admin emails found, skipping notification.');
+        return;
+    }
+    const client = new brevo_1.BrevoClient({ apiKey: brevoApiKey.value() });
+    try {
+        await client.transactionalEmails.sendTransacEmail({
+            sender: { name: 'Club Táchira', email: 'notificaciones@tenistac.com' },
+            to: adminEmails.map((email) => ({ email })),
+            subject,
+            htmlContent,
+        });
+    }
+    catch (err) {
+        console.error('Error sending admin email notification:', err);
+    }
+};
 const sumarDias = (fecha, dias) => {
     const d = new Date(`${fecha}T00:00:00`);
     d.setDate(d.getDate() + dias);
     return d.toISOString().split('T')[0];
+};
+const formatFechaVenezuela = (date) => {
+    const d = date.toDate ? date.toDate() : new Date(date);
+    return new Intl.DateTimeFormat('es-VE', {
+        timeZone: 'America/Caracas',
+        dateStyle: 'short',
+        timeStyle: 'short',
+        hour12: true,
+    }).format(d);
 };
 const expandirBloqueo = async (bloqueoId, fechaInicio, fechaFin, turno, cancha, motivo) => {
     const dias = [];
@@ -46,7 +129,9 @@ const expandirBloqueo = async (bloqueoId, fechaInicio, fechaFin, turno, cancha, 
     }
     await batch.commit();
 };
-exports.createUser = (0, https_1.onCall)(async (request) => {
+exports.createUser = (0, https_1.onCall)({
+    secrets: [brevoApiKey],
+}, async (request) => {
     try {
         if (!request.auth) {
             throw new https_1.HttpsError('unauthenticated', 'Debes iniciar sesión.');
@@ -54,20 +139,35 @@ exports.createUser = (0, https_1.onCall)(async (request) => {
         await assertAdmin(request.auth.uid);
         const data = request.data;
         // Validar username
-        if (!data.username || typeof data.username !== 'string') {
-            throw new https_1.HttpsError('invalid-argument', 'El nombre de usuario es obligatorio.');
-        }
+        validarString(data.username, 'username', { required: true, minLength: 2, maxLength: 30, pattern: /^[a-z]+$/ });
         const username = data.username.toLowerCase().trim();
-        if (username.length < 2) {
-            throw new https_1.HttpsError('invalid-argument', 'El nombre de usuario debe tener al menos 2 caracteres.');
+        // Validar contraseña
+        if (!data.password || typeof data.password !== 'string') {
+            throw new https_1.HttpsError('invalid-argument', 'La contraseña es obligatoria.');
         }
-        // Validar que solo contenga letras
-        if (!/^[a-z]+$/.test(username)) {
-            throw new https_1.HttpsError('invalid-argument', 'El nombre de usuario solo puede contener letras minúsculas.');
-        }
-        if (!data.password || data.password.length < 6) {
+        if (data.password.length < 6) {
             throw new https_1.HttpsError('invalid-argument', 'La contraseña debe tener al menos 6 caracteres.');
         }
+        if (data.password.length > 128) {
+            throw new https_1.HttpsError('invalid-argument', 'La contraseña no debe exceder 128 caracteres.');
+        }
+        // Validar role
+        if (!data.role || !ROLES_VALIDOS.includes(data.role)) {
+            throw new https_1.HttpsError('invalid-argument', `role inválido. Debe ser: ${ROLES_VALIDOS.join(', ')}`);
+        }
+        // Validar displayName si se provee
+        if (data.displayName) {
+            validarString(data.displayName, 'displayName', { required: false, maxLength: 100 });
+        }
+        // Validar equipo si se provee
+        if (data.equipo) {
+            validarString(data.equipo, 'equipo', { required: false, maxLength: 100 });
+        }
+        // Validar email (obligatorio para poder enviar credenciales)
+        if (!data.email || !data.email.trim()) {
+            throw new https_1.HttpsError('invalid-argument', 'El correo es obligatorio para enviar las credenciales.');
+        }
+        validarString(data.email, 'email', { required: true, maxLength: 200 });
         // Verificar unicidad del username
         const existing = await db.collection('usuarios').where('username', '==', username).get();
         if (!existing.empty) {
@@ -78,12 +178,6 @@ exports.createUser = (0, https_1.onCall)(async (request) => {
         if (!/^[\w.-]+@[\w.-]+\.\w+$/.test(internalEmail)) {
             throw new https_1.HttpsError('invalid-argument', 'Formato de email inválido generado.');
         }
-        console.log('Creating user with:', {
-            username,
-            internalEmail,
-            hasPassword: !!data.password,
-            referenceEmail: data.email || '',
-        });
         const finalDisplayName = (data.displayName && data.displayName.trim())
             ? data.displayName.trim()
             : username;
@@ -97,7 +191,7 @@ exports.createUser = (0, https_1.onCall)(async (request) => {
             user = await auth.createUser(createUserData);
         }
         catch (err) {
-            console.error('Auth creation failed:', err, 'with data:', createUserData);
+            console.error('Auth creation failed:', err.code);
             if (err.code?.includes('email-already-exists')) {
                 throw new https_1.HttpsError('already-exists', 'Ya existe un usuario con ese username.');
             }
@@ -112,8 +206,45 @@ exports.createUser = (0, https_1.onCall)(async (request) => {
             role: data.role,
             equipo: data.equipo || '',
             activo: true,
+            primerLogin: true,
             createdAt: firestore_1.Timestamp.now(),
             createdBy: request.auth.uid,
+        });
+        console.log(`Usuario creado: ${user.uid} (${username}) por ${request.auth.uid}`);
+        const client = new brevo_1.BrevoClient({ apiKey: brevoApiKey.value() });
+        try {
+            await client.transactionalEmails.sendTransacEmail({
+                sender: { name: 'Club Táchira', email: 'notificaciones@tenistac.com' },
+                to: [{ email: data.email }],
+                subject: '[TenisTac] Tus credenciales de acceso',
+                htmlContent: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #16a34a;">Bienvenido a TenisTac</h2>
+              <p>Hola ${finalDisplayName},</p>
+              <p>Tu cuenta ha sido creada. Estas son tus credenciales de acceso:</p>
+              <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+                <p><strong>Usuario:</strong> ${username}</p>
+                <p><strong>Contraseña:</strong> ${data.password}</p>
+              </div>
+              <p>Ingresá en <a href="https://canchas.tenistac.com">canchas.tenistac.com</a></p>
+              <p style="color: #dc2626; font-size: 12px;">Por seguridad, te recomendamos cambiar tu contraseña la primera vez que ingreses.</p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+              <p style="color: #9ca3af; font-size: 12px;">Club Táchira — Solicitud de Canchas</p>
+            </div>
+          `,
+            });
+            console.log(`Email de credenciales enviado a ${data.email}`);
+        }
+        catch (err) {
+            console.error('Error enviando email de credenciales:', err);
+        }
+        await db.collection('logs').add({
+            tipo: 'usuario_creado',
+            usuarioId: user.uid,
+            username,
+            role: data.role,
+            realizadoPor: request.auth.uid,
+            realizadoEn: firestore_1.Timestamp.now(),
         });
         return { uid: user.uid };
     }
@@ -132,9 +263,24 @@ exports.updateUser = (0, https_1.onCall)(async (request) => {
         }
         await assertAdmin(request.auth.uid);
         const { uid, username, ...data } = request.data;
-        if (!uid) {
+        if (!uid || typeof uid !== 'string') {
             throw new https_1.HttpsError('invalid-argument', 'El uid del usuario es obligatorio.');
         }
+        // Validar username si se está cambiando
+        if (username) {
+            validarString(username, 'username', { required: true, minLength: 2, maxLength: 30, pattern: /^[a-z]+$/ });
+        }
+        // Validar role si se está cambiando
+        if (data.role && !ROLES_VALIDOS.includes(data.role)) {
+            throw new https_1.HttpsError('invalid-argument', `role inválido. Debe ser: ${ROLES_VALIDOS.join(', ')}`);
+        }
+        // Validar campos de texto si se proveen
+        if (data.displayName !== undefined)
+            validarString(data.displayName, 'displayName', { required: false, maxLength: 100 });
+        if (data.equipo !== undefined)
+            validarString(data.equipo, 'equipo', { required: false, maxLength: 100 });
+        if (data.email !== undefined)
+            validarString(data.email, 'email', { required: false, maxLength: 200 });
         const userDoc = await db.collection('usuarios').doc(uid).get();
         if (!userDoc.exists) {
             throw new https_1.HttpsError('not-found', 'El usuario no existe.');
@@ -142,12 +288,6 @@ exports.updateUser = (0, https_1.onCall)(async (request) => {
         // Si se está cambiando el username, verificar unicidad
         if (username) {
             const cleanUsername = username.toLowerCase().trim();
-            if (cleanUsername.length < 2) {
-                throw new https_1.HttpsError('invalid-argument', 'El nombre de usuario debe tener al menos 2 caracteres.');
-            }
-            if (!/^[a-z]+$/.test(cleanUsername)) {
-                throw new https_1.HttpsError('invalid-argument', 'El nombre de usuario solo puede contener letras minúsculas.');
-            }
             const existing = await db.collection('usuarios').where('username', '==', cleanUsername).get();
             const isTakenByOther = existing.docs.some(doc => doc.id !== uid);
             if (isTakenByOther) {
@@ -165,7 +305,7 @@ exports.updateUser = (0, https_1.onCall)(async (request) => {
                 await auth.updateUser(uid, authUpdate);
             }
             catch (err) {
-                console.error('Auth update failed:', err, 'with data:', authUpdate);
+                console.error('Auth update failed:', err.code);
                 if (err.code?.includes('email-already-exists')) {
                     throw new https_1.HttpsError('already-exists', 'Ya existe otro usuario con ese nombre de usuario.');
                 }
@@ -175,10 +315,18 @@ exports.updateUser = (0, https_1.onCall)(async (request) => {
                 throw new https_1.HttpsError('internal', `Error actualizando usuario en Auth: ${err.message}`);
             }
         }
-        const updateData = { ...data };
+        const updateData = { ...data, updatedAt: firestore_1.Timestamp.now(), updatedBy: request.auth.uid };
         if (username)
             updateData.username = username.toLowerCase().trim();
         await db.collection('usuarios').doc(uid).update(updateData);
+        console.log(`Usuario ${uid} actualizado por ${request.auth.uid}:`, JSON.stringify(updateData));
+        await db.collection('logs').add({
+            tipo: 'usuario_actualizado',
+            usuarioId: uid,
+            cambios: updateData,
+            realizadoPor: request.auth.uid,
+            realizadoEn: firestore_1.Timestamp.now(),
+        });
     }
     catch (error) {
         console.error('updateUser error:', error);
@@ -194,8 +342,19 @@ exports.deleteUser = (0, https_1.onCall)(async (request) => {
     }
     await assertAdmin(request.auth.uid);
     const { uid } = request.data;
+    const userDoc = await db.collection('usuarios').doc(uid).get();
+    const userData = userDoc.data();
     await auth.deleteUser(uid);
     await db.collection('usuarios').doc(uid).delete();
+    console.log(`Usuario eliminado: ${uid} (${userData?.username || '?'}) por ${request.auth.uid}`);
+    await db.collection('logs').add({
+        tipo: 'usuario_eliminado',
+        usuarioId: uid,
+        username: userData?.username || null,
+        role: userData?.role || null,
+        realizadoPor: request.auth.uid,
+        realizadoEn: firestore_1.Timestamp.now(),
+    });
 });
 exports.setPassword = (0, https_1.onCall)(async (request) => {
     if (!request.auth) {
@@ -203,10 +362,24 @@ exports.setPassword = (0, https_1.onCall)(async (request) => {
     }
     await assertAdmin(request.auth.uid);
     const { uid, newPassword } = request.data;
-    if (!newPassword || newPassword.length < 6) {
+    validarString(uid, 'uid', { required: true, minLength: 10, maxLength: 200 });
+    if (!newPassword || typeof newPassword !== 'string') {
+        throw new https_1.HttpsError('invalid-argument', 'La nueva contraseña es obligatoria.');
+    }
+    if (newPassword.length < 6) {
         throw new https_1.HttpsError('invalid-argument', 'La contraseña debe tener al menos 6 caracteres.');
     }
+    if (newPassword.length > 128) {
+        throw new https_1.HttpsError('invalid-argument', 'La contraseña no debe exceder 128 caracteres.');
+    }
     await auth.updateUser(uid, { password: newPassword });
+    console.log(`Contraseña actualizada para usuario ${uid} por ${request.auth.uid}`);
+    await db.collection('logs').add({
+        tipo: 'usuario_password',
+        usuarioId: uid,
+        realizadoPor: request.auth.uid,
+        realizadoEn: firestore_1.Timestamp.now(),
+    });
     return { password: newPassword };
 });
 exports.createBloqueo = (0, https_1.onCall)(async (request) => {
@@ -215,6 +388,26 @@ exports.createBloqueo = (0, https_1.onCall)(async (request) => {
     }
     await assertAdmin(request.auth.uid);
     const { tipo, fechaInicio, fechaFin, turno, cancha, motivo } = request.data;
+    // Validar tipo
+    if (!TIPOS_BLOQUEO.includes(tipo)) {
+        throw new https_1.HttpsError('invalid-argument', `tipo inválido. Debe ser: ${TIPOS_BLOQUEO.join(', ')}`);
+    }
+    // Validar fechas
+    validarFecha(fechaInicio, 'fechaInicio');
+    validarFecha(fechaFin, 'fechaFin');
+    if (fechaInicio > fechaFin) {
+        throw new https_1.HttpsError('invalid-argument', 'fechaInicio no puede ser posterior a fechaFin.');
+    }
+    // Validar turno
+    if (!TURNOS_AMBOS_VALIDOS.includes(turno)) {
+        throw new https_1.HttpsError('invalid-argument', `turno inválido. Debe ser: ${TURNOS_AMBOS_VALIDOS.join(', ')}`);
+    }
+    // Validar cancha (null = todas, o número 1-5)
+    if (cancha !== null && (typeof cancha !== 'number' || !CANCHAS_SET.has(cancha))) {
+        throw new https_1.HttpsError('invalid-argument', 'cancha inválida. Debe ser null o un número del 1 al 5.');
+    }
+    // Validar motivo
+    validarString(motivo, 'motivo', { required: true, maxLength: 200 });
     const bloqueoRef = db.collection('bloqueos').doc();
     await bloqueoRef.set({
         tipo,
@@ -227,6 +420,23 @@ exports.createBloqueo = (0, https_1.onCall)(async (request) => {
         creadoEn: firestore_1.Timestamp.now(),
     });
     await expandirBloqueo(bloqueoRef.id, fechaInicio, fechaFin, turno, cancha, motivo);
+    const adminSnap = await db.collection('usuarios').doc(request.auth.uid).get();
+    const adminName = adminSnap.data()?.displayName || adminSnap.data()?.username || 'Admin';
+    const canchalabel = cancha === null ? 'Todas' : `Cancha ${cancha}`;
+    await sendAdminNotification(`[TenisTac] Nuevo bloqueo creado`, `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #ef4444;">Nuevo bloqueo de cancha</h2>
+        <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <p><strong>Tipo:</strong> ${tipo}</p>
+          <p><strong>Fechas:</strong> ${fechaInicio} a ${fechaFin}</p>
+          <p><strong>Turno:</strong> ${turno}</p>
+          <p><strong>Cancha:</strong> ${canchalabel}</p>
+          <p><strong>Motivo:</strong> ${motivo}</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+          <p><strong>Creado por:</strong> ${adminName}</p>
+        </div>
+      </div>
+      `);
     return { id: bloqueoRef.id };
 });
 exports.deleteBloqueo = (0, https_1.onCall)(async (request) => {
@@ -235,11 +445,33 @@ exports.deleteBloqueo = (0, https_1.onCall)(async (request) => {
     }
     await assertAdmin(request.auth.uid);
     const { id } = request.data;
+    const bloqueoSnap = await db.collection('bloqueos').doc(id).get();
+    const bloqueoData = bloqueoSnap.data();
     const slotsSnap = await db.collection('slotsBloqueados').where('bloqueoId', '==', id).get();
     const batch = db.batch();
     slotsSnap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
     await db.collection('bloqueos').doc(id).delete();
+    // Notify admins
+    if (bloqueoData) {
+        const adminSnap = await db.collection('usuarios').doc(request.auth.uid).get();
+        const adminName = adminSnap.data()?.displayName || adminSnap.data()?.username || 'Admin';
+        const canchalabel = bloqueoData.cancha === null ? 'Todas' : `Cancha ${bloqueoData.cancha}`;
+        await sendAdminNotification(`[TenisTac] Bloqueo eliminado`, `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #ef4444;">Bloqueo de cancha eliminado</h2>
+        <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <p><strong>Tipo:</strong> ${bloqueoData.tipo}</p>
+          <p><strong>Fechas:</strong> ${bloqueoData.fechaInicio} a ${bloqueoData.fechaFin}</p>
+          <p><strong>Turno:</strong> ${bloqueoData.turno}</p>
+          <p><strong>Cancha:</strong> ${canchalabel}</p>
+          <p><strong>Motivo:</strong> ${bloqueoData.motivo}</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+          <p><strong>Eliminado por:</strong> ${adminName}</p>
+        </div>
+      </div>
+      `);
+    }
 });
 exports.updateBloqueo = (0, https_1.onCall)(async (request) => {
     if (!request.auth) {
@@ -362,7 +594,7 @@ exports.onReservaSolicitada = (0, firestore_2.onDocumentCreated)({
     const data = event.data?.data();
     if (!data || data.estado !== 'solicitado')
         return;
-    const { capitanNombre, capitanEquipo, equipoRival, fecha, turnoPreferencia, motivo, observaciones } = data;
+    const { capitanUid, capitanNombre, capitanEquipo, equipoRival, fecha, turnoPreferencia, motivo, observaciones, solicitadoEn } = data;
     // Get all active admins with email
     const adminsSnap = await db.collection('usuarios').where('role', '==', 'admin').where('activo', '==', true).get();
     const recipientEmails = [];
@@ -371,12 +603,22 @@ exports.onReservaSolicitada = (0, firestore_2.onDocumentCreated)({
         if (email && typeof email === 'string' && email.trim())
             recipientEmails.push(email);
     }
+    // Add captain email
+    if (capitanUid) {
+        const captainSnap = await db.collection('usuarios').doc(capitanUid).get();
+        if (captainSnap.exists) {
+            const email = captainSnap.data()?.email;
+            if (email && typeof email === 'string' && email.trim() && !recipientEmails.includes(email))
+                recipientEmails.push(email);
+        }
+    }
     if (recipientEmails.length === 0) {
-        console.log('No admin emails found, skipping notification.');
+        console.log('No recipient emails found, skipping notification.');
         return;
     }
     const turnoLabel = turnoPreferencia === 'maniana' ? 'Mañana' : turnoPreferencia === 'tarde' ? 'Tarde' : 'Cualquiera';
     const motivoLabel = motivo === 'amistoso' ? 'Amistoso' : motivo === 'entrenamiento' ? 'Entrenamiento' : motivo === 'clases' ? 'Clases' : motivo === 'torneo' ? 'Torneo' : motivo || '';
+    const fechaSolicitud = solicitadoEn ? formatFechaVenezuela(solicitadoEn) : 'No disponible';
     const client = new brevo_1.BrevoClient({ apiKey: brevoApiKey.value() });
     try {
         await client.transactionalEmails.sendTransacEmail({
@@ -393,6 +635,7 @@ exports.onReservaSolicitada = (0, firestore_2.onDocumentCreated)({
               <p><strong>Fecha:</strong> ${fecha}</p>
               <p><strong>Prefiere:</strong> ${turnoLabel}</p>
               <p><strong>Motivo:</strong> ${motivoLabel}</p>
+              <p><strong>Solicitado el:</strong> ${fechaSolicitud}</p>
               ${observaciones ? `<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;"><p><strong>Observaciones:</strong></p><p style="white-space: pre-wrap;">${observaciones}</p>` : ''}
             </div>
             <a href="https://canchas.tenistac.com/admin"
@@ -418,10 +661,86 @@ exports.changeOwnPassword = (0, https_1.onCall)(async (request) => {
         throw new https_1.HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
     const { newPassword } = request.data;
-    if (!newPassword || newPassword.length < 6) {
+    if (!newPassword || typeof newPassword !== 'string') {
+        throw new https_1.HttpsError('invalid-argument', 'La nueva contraseña es obligatoria.');
+    }
+    if (newPassword.length < 6) {
         throw new https_1.HttpsError('invalid-argument', 'La contraseña debe tener al menos 6 caracteres.');
     }
+    if (newPassword.length > 128) {
+        throw new https_1.HttpsError('invalid-argument', 'La contraseña no debe exceder 128 caracteres.');
+    }
     await auth.updateUser(request.auth.uid, { password: newPassword });
+    await db.collection('usuarios').doc(request.auth.uid).update({
+        primerLogin: false,
+        updatedAt: firestore_1.Timestamp.now(),
+        updatedBy: request.auth.uid,
+    });
+});
+const generarPasswordSegura = (length) => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+};
+exports.adminResetPassword = (0, https_1.onCall)({
+    secrets: [brevoApiKey],
+}, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    await assertAdmin(request.auth.uid);
+    const { uid } = request.data;
+    if (!uid || typeof uid !== 'string') {
+        throw new https_1.HttpsError('invalid-argument', 'El uid del usuario es obligatorio.');
+    }
+    const userDoc = await db.collection('usuarios').doc(uid).get();
+    if (!userDoc.exists) {
+        throw new https_1.HttpsError('not-found', 'El usuario no existe.');
+    }
+    const userData = userDoc.data();
+    const newPassword = generarPasswordSegura(12);
+    await auth.updateUser(uid, { password: newPassword });
+    console.log(`Contraseña restablecida para usuario ${uid} por ${request.auth.uid}`);
+    if (userData.email && typeof userData.email === 'string' && userData.email.trim()) {
+        const client = new brevo_1.BrevoClient({ apiKey: brevoApiKey.value() });
+        try {
+            await client.transactionalEmails.sendTransacEmail({
+                sender: { name: 'Club Táchira', email: 'notificaciones@tenistac.com' },
+                to: [{ email: userData.email }],
+                subject: '[TenisTac] Tu contraseña ha sido restablecida',
+                htmlContent: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #16a34a;">Contraseña restablecida</h2>
+              <p>Hola ${userData.displayName || userData.username},</p>
+              <p>Tu contraseña ha sido restablecida por un administrador. Estas son tus nuevas credenciales:</p>
+              <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+                <p><strong>Usuario:</strong> ${userData.username}</p>
+                <p><strong>Nueva contraseña:</strong> ${newPassword}</p>
+              </div>
+              <p>Ingresá en <a href="https://canchas.tenistac.com">canchas.tenistac.com</a></p>
+              <p style="color: #dc2626; font-size: 12px;">Por seguridad, te recomendamos cambiar tu contraseña después de iniciar sesión.</p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+              <p style="color: #9ca3af; font-size: 12px;">Club Táchira — Solicitud de Canchas</p>
+            </div>
+          `,
+            });
+            console.log(`Email de restablecimiento enviado a ${userData.email}`);
+        }
+        catch (err) {
+            console.error('Error enviando email de restablecimiento:', err);
+        }
+    }
+    await db.collection('logs').add({
+        tipo: 'usuario_password_reset',
+        usuarioId: uid,
+        username: userData.username,
+        realizadoPor: request.auth.uid,
+        realizadoEn: firestore_1.Timestamp.now(),
+    });
+    return { newPassword };
 });
 // Reject a reservation request and notify captain + admins via email
 exports.rechazarReserva = (0, https_1.onCall)({
@@ -432,9 +751,8 @@ exports.rechazarReserva = (0, https_1.onCall)({
     }
     await assertAdmin(request.auth.uid);
     const { reservaId, motivo } = request.data;
-    if (!motivo || !motivo.trim()) {
-        throw new https_1.HttpsError('invalid-argument', 'El motivo del rechazo es obligatorio.');
-    }
+    validarString(reservaId, 'reservaId', { required: true, minLength: 5, maxLength: 200 });
+    validarString(motivo, 'motivo', { required: true, maxLength: 500 });
     // Get the reservation
     const reservaSnap = await db.collection('reservas').doc(reservaId).get();
     if (!reservaSnap.exists) {
@@ -511,6 +829,34 @@ exports.rechazarReserva = (0, https_1.onCall)({
     }
     return { success: true };
 });
+// Delete a pending request directly WITHOUT notifying anyone (for mistaken requests)
+exports.eliminarSolicitud = (0, https_1.onCall)(async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    await assertAdmin(request.auth.uid);
+    const { reservaId } = request.data;
+    if (!reservaId || typeof reservaId !== 'string') {
+        throw new https_1.HttpsError('invalid-argument', 'El ID de la solicitud es obligatorio.');
+    }
+    const snap = await db.collection('reservas').doc(reservaId).get();
+    if (!snap.exists) {
+        throw new https_1.HttpsError('not-found', 'La solicitud no existe.');
+    }
+    const data = snap.data();
+    await db.collection('reservas').doc(reservaId).delete();
+    console.log(`Solicitud ${reservaId} eliminada por ${request.auth.uid} (sin notificación)`);
+    await db.collection('logs').add({
+        tipo: 'reserva_eliminada',
+        reservaId,
+        capitanUid: data.capitanUid ?? null,
+        capitanNombre: data.capitanNombre ?? null,
+        fecha: data.fecha ?? null,
+        realizadoPor: request.auth.uid,
+        realizadoEn: firestore_1.Timestamp.now(),
+    });
+    return { success: true };
+});
 // Approve a reservation request and notify captain + admins via email
 exports.aprobarReserva = (0, https_1.onCall)({
     secrets: [brevoApiKey],
@@ -520,6 +866,14 @@ exports.aprobarReserva = (0, https_1.onCall)({
     }
     await assertAdmin(request.auth.uid);
     const { reservaId, turno, canchas } = request.data;
+    // Validar reservaId
+    validarString(reservaId, 'reservaId', { required: true, minLength: 5, maxLength: 200 });
+    // Validar turno
+    if (!TURNOS_VALIDOS.includes(turno)) {
+        throw new https_1.HttpsError('invalid-argument', `turno inválido. Debe ser: ${TURNOS_VALIDOS.join(', ')}`);
+    }
+    // Validar canchas
+    const canchasValidadas = validarCanchas(canchas);
     // Get the reservation
     const reservaSnap = await db.collection('reservas').doc(reservaId).get();
     if (!reservaSnap.exists) {
@@ -533,7 +887,7 @@ exports.aprobarReserva = (0, https_1.onCall)({
     await db.collection('reservas').doc(reservaId).update({
         estado: 'reservado',
         turno,
-        canchas,
+        canchas: canchasValidadas,
         aprobadoEn: firestore_1.Timestamp.now(),
         aprobadoPor: request.auth.uid,
     });

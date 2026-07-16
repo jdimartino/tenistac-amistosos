@@ -13,7 +13,7 @@ interface DiaColumnaProps {
 export const DiaColumna = ({ fecha, slots, pendientes, onEditarReserva, onBloqueoClick }: DiaColumnaProps) => {
   const [, mes, dia] = fecha.split('-');
   const label = `${nombreDiaCompleto(fecha)} ${dia}/${mes}`;
-  const diaSemana = new Date(`${fecha}T00:00:00`).getDay();
+  const diaSemana = new Date(`${fecha}T12:00:00`).getDay();
   const headerFinde = diaSemana === 0 ? 'bg-sky-100 rounded-t-2xl -mx-3 -mt-3 px-3 pt-3 pb-2' : diaSemana === 6 ? 'bg-sky-50 rounded-t-2xl -mx-3 -mt-3 px-3 pt-3 pb-2' : '';
 
   const turnos: Turno[] = ['maniana', 'tarde'];
