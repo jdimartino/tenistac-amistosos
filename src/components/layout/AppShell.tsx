@@ -207,7 +207,8 @@ export const AppShell = ({ children }: AppShellProps) => {
           <h1 className="text-base sm:text-lg font-bold text-green-700 leading-tight">
             Club Táchira<br />
             <span className="text-sm sm:text-base font-normal">Solicitud de Canchas</span><br />
-            <span className="text-[10px] sm:text-xs font-normal text-black">Beta 1.0</span>
+            <span className="text-[10px] sm:text-xs font-normal text-black">Beta 1.0</span><br />
+            <span className="text-[10px] sm:text-xs font-normal text-black">By #JDMRules</span>
           </h1>
           <div className="flex items-center gap-2 sm:gap-3">
             <span className="truncate max-w-24 sm:max-w-40 text-sm text-gray-600">

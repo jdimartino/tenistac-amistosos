@@ -9,6 +9,7 @@ import { ErrorBoundary } from './components/ui/ErrorBoundary';
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })));
 const UsuariosPanel = lazy(() => import('./pages/admin/UsuariosPanel').then((m) => ({ default: m.UsuariosPanel })));
 const SolicitudesPanel = lazy(() => import('./pages/admin/SolicitudesPanel').then((m) => ({ default: m.SolicitudesPanel })));
+const HistorialPanel = lazy(() => import('./pages/admin/HistorialPanel').then((m) => ({ default: m.HistorialPanel })));
 const BloqueosPanel = lazy(() => import('./pages/admin/BloqueosPanel').then((m) => ({ default: m.BloqueosPanel })));
 const Mensajes = lazy(() => import('./pages/Mensajes').then((m) => ({ default: m.Mensajes })));
 const MensajeDetalle = lazy(() => import('./pages/MensajeDetalle').then((m) => ({ default: m.MensajeDetalle })));
@@ -71,6 +72,7 @@ function App() {
             <Route index element={<Navigate to="/admin/solicitudes" replace />} />
             <Route path="usuarios" element={<UsuariosPanel />} />
             <Route path="solicitudes" element={<SolicitudesPanel />} />
+            <Route path="historial" element={<HistorialPanel />} />
             <Route path="bloqueos" element={<BloqueosPanel />} />
           </Route>
           <Route path="/mensajes" element={<ProtectedRoute><Mensajes /></ProtectedRoute>} />

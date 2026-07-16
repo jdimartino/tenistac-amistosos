@@ -292,6 +292,7 @@ export const createUser = onCall<
               <p style="color: #dc2626; font-size: 12px;">Por seguridad, te recomendamos cambiar tu contraseña la primera vez que ingreses.</p>
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
               <p style="color: #9ca3af; font-size: 12px;">Club Táchira — Solicitud de Canchas</p>
+              <p style="color: #9ca3af; font-size: 12px;">Desarrollado por JDM Services Systems</p>
             </div>
           `,
         });
@@ -725,6 +726,8 @@ export const sendEmailNotification = onDocumentCreated(
             </a>
             <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
               Este es un mensaje automático de Club Táchira Solicitud de Canchas.
+              <br />
+              Desarrollado por JDM Services Systems
             </p>
           </div>
         `,
@@ -811,6 +814,8 @@ export const onReservaSolicitada = onDocumentCreated(
             </a>
             <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
               Este es un mensaje automático de Club Táchira Solicitud de Canchas.
+              <br />
+              Desarrollado por JDM Services Systems
             </p>
           </div>
         `,
@@ -907,6 +912,7 @@ export const adminResetPassword = onCall<
               <p style="color: #dc2626; font-size: 12px;">Por seguridad, te recomendamos cambiar tu contraseña después de iniciar sesión.</p>
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
               <p style="color: #9ca3af; font-size: 12px;">Club Táchira — Solicitud de Canchas</p>
+              <p style="color: #9ca3af; font-size: 12px;">Desarrollado por JDM Services Systems</p>
             </div>
           `,
         });
@@ -942,6 +948,7 @@ export const rechazarReserva = onCall<{ reservaId: string; motivo: string }, Pro
     const { reservaId, motivo } = request.data;
     validarString(reservaId, 'reservaId', { required: true, minLength: 5, maxLength: 200 });
     validarString(motivo, 'motivo', { required: true, maxLength: 500 });
+    // auditoria: este evento se registra en logs al rechazar (ver abajo)
 
     // Get the reservation
     const reservaSnap = await db.collection('reservas').doc(reservaId).get();
@@ -952,6 +959,17 @@ export const rechazarReserva = onCall<{ reservaId: string; motivo: string }, Pro
 
     // Delete the reservation
     await db.collection('reservas').doc(reservaId).delete();
+
+    await db.collection('logs').add({
+      tipo: 'reserva_rechazada',
+      reservaId,
+      capitanUid: reserva.capitanUid ?? null,
+      capitanNombre: reserva.capitanNombre ?? null,
+      fecha: reserva.fecha ?? null,
+      motivo: motivo,
+      realizadoPor: request.auth.uid,
+      realizadoEn: Timestamp.now(),
+    });
 
     // Get admin name
     const adminSnap = await db.collection('usuarios').doc(request.auth.uid).get();
@@ -1015,6 +1033,8 @@ export const rechazarReserva = onCall<{ reservaId: string; motivo: string }, Pro
             </a>
             <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
               Este es un mensaje automático de Club Táchira Solicitud de Canchas.
+              <br />
+              Desarrollado por JDM Services Systems
             </p>
           </div>
         `,
@@ -1089,7 +1109,7 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
 
     // Validar canchas
     const canchasValidadas = validarCanchas(canchas);
-
+    // auditoria: este evento se registra en logs al aprobar (ver abajo)
     // Get the reservation
     const reservaSnap = await db.collection('reservas').doc(reservaId).get();
     if (!reservaSnap.exists) {
@@ -1108,6 +1128,18 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
       canchas: canchasValidadas,
       aprobadoEn: Timestamp.now(),
       aprobadoPor: request.auth.uid,
+    });
+
+    await db.collection('logs').add({
+      tipo: 'reserva_aprobada',
+      reservaId,
+      capitanUid: reserva.capitanUid ?? null,
+      capitanNombre: reserva.capitanNombre ?? null,
+      fecha: reserva.fecha ?? null,
+      turno,
+      canchas: canchasValidadas,
+      realizadoPor: request.auth.uid,
+      realizadoEn: Timestamp.now(),
     });
 
     // Collect recipient emails: captain + all admins
@@ -1168,6 +1200,8 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
             </a>
             <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
               Este es un mensaje automático de Club Táchira Solicitud de Canchas.
+              <br />
+              Desarrollado por JDM Services Systems
             </p>
           </div>
         `,

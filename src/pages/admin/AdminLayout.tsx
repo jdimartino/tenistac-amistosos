@@ -5,6 +5,7 @@ const tabs = [
   { to: '/', label: '← Canchas' },
   { to: '/admin/usuarios', label: 'Usuarios' },
   { to: '/admin/solicitudes', label: 'Solicitudes' },
+  { to: '/admin/historial', label: 'Historial' },
   { to: '/admin/bloqueos', label: 'Bloqueos' },
 ];
 

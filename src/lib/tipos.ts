@@ -100,6 +100,22 @@ export interface SlotInfo {
   bloqueo?: SlotBloqueado;
 }
 
+export type LogReservaTipo = 'reserva_aprobada' | 'reserva_rechazada' | 'reserva_eliminada';
+
+export interface LogReserva {
+  id: string;
+  tipo: LogReservaTipo;
+  reservaId: string;
+  capitanUid: string | null;
+  capitanNombre: string | null;
+  fecha: string | null;
+  turno?: string;
+  canchas?: number[];
+  motivo?: string;
+  realizadoPor: string;
+  realizadoEn: Date;
+}
+
 // MENSAJES INTERNOS
 export type MensajeCategoria = 'comunicacion' | 'aprobacion' | 'rechazo';
 export type MensajeTipo = 'directo' | 'sistema';
