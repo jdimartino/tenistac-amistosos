@@ -11,7 +11,7 @@ interface CalendarioCapitanProps {
   fechaFin: string;
 }
 
-const TOTAL_SLOTS_POR_DIA = 10; // 5 canchas × 2 turnos
+const TOTAL_SLOTS_POR_DIA = 15; // 5 canchas × 3 turnos
 
 export const CalendarioCapitan = ({ fechaInicio, fechaFin }: CalendarioCapitanProps) => {
   const { usuario } = useAuth();

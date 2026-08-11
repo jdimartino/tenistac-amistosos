@@ -16,8 +16,8 @@ const auth = (0, auth_1.getAuth)();
 const brevoApiKey = (0, params_1.defineSecret)('BREVO_API_KEY');
 const CANCHAS = [1, 2, 3, 4, 5];
 const CANCHAS_SET = new Set(CANCHAS);
-const TURNOS_VALIDOS = ['maniana', 'tarde'];
-const TURNOS_AMBOS_VALIDOS = ['maniana', 'tarde', 'ambos'];
+const TURNOS_VALIDOS = ['maniana', 'tarde', 'noche'];
+const TURNOS_AMBOS_VALIDOS = ['maniana', 'tarde', 'noche', 'ambos'];
 const ROLES_VALIDOS = ['admin', 'capitan', 'subcapitan'];
 const TIPOS_BLOQUEO = ['dia', 'turno', 'rango'];
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -116,7 +116,7 @@ const expandirBloqueo = async (bloqueoId, fechaInicio, fechaFin, turno, cancha, 
         dias.push(actual);
         actual = sumarDias(actual, 1);
     }
-    const turnos = turno === 'ambos' ? ['maniana', 'tarde'] : [turno];
+    const turnos = turno === 'ambos' ? ['maniana', 'tarde', 'noche'] : [turno];
     const canchas = cancha === null ? CANCHAS : [cancha];
     const batch = db.batch();
     for (const d of dias) {
@@ -619,8 +619,8 @@ exports.onReservaSolicitada = (0, firestore_2.onDocumentCreated)({
         console.log('No recipient emails found, skipping notification.');
         return;
     }
-    const turnoLabel = turnoPreferencia === 'maniana' ? 'Mañana' : turnoPreferencia === 'tarde' ? 'Tarde' : 'Cualquiera';
-    const motivoLabel = motivo === 'amistoso' ? 'Amistoso' : motivo === 'entrenamiento' ? 'Entrenamiento' : motivo === 'clases' ? 'Clases' : motivo === 'torneo' ? 'Torneo' : motivo || '';
+    const turnoLabel = turnoPreferencia === 'maniana' ? 'Mañana' : turnoPreferencia === 'tarde' ? 'Tarde' : turnoPreferencia === 'noche' ? 'Noche' : 'Cualquiera';
+    const motivoLabel = motivo === 'amistoso' ? 'Amistoso' : motivo === 'entrenamiento' ? 'Entrenamiento' : motivo === 'clases' ? 'Clases' : motivo === 'torneo' ? 'Torneo' : motivo === 'churuata' ? 'Churuata' : motivo || '';
     const fechaSolicitud = solicitadoEn ? formatFechaVenezuela(solicitadoEn) : 'No disponible';
     const client = new brevo_1.BrevoClient({ apiKey: brevoApiKey.value() });
     try {
@@ -804,8 +804,8 @@ exports.rechazarReserva = (0, https_1.onCall)({
         console.log('No recipients with email found, skipping rejection notification.');
         return { success: true };
     }
-    const turnoLabel = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : 'Cualquiera';
-    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo || '';
+    const turnoLabel = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : reserva.turnoPreferencia === 'noche' ? 'Noche' : 'Cualquiera';
+    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo === 'churuata' ? 'Churuata' : reserva.motivo || '';
     const client = new brevo_1.BrevoClient({ apiKey: brevoApiKey.value() });
     try {
         await client.transactionalEmails.sendTransacEmail({
@@ -945,9 +945,9 @@ exports.aprobarReserva = (0, https_1.onCall)({
         console.log('No recipients with email found, skipping approval notification.');
         return { success: true };
     }
-    const turnoLabelReserva = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : 'Cualquiera';
-    const turnoLabelAsignado = turno === 'maniana' ? 'Mañana' : 'Tarde';
-    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo || '';
+    const turnoLabelReserva = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : reserva.turnoPreferencia === 'noche' ? 'Noche' : 'Cualquiera';
+    const turnoLabelAsignado = turno === 'maniana' ? 'Mañana' : turno === 'tarde' ? 'Tarde' : 'Noche';
+    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo === 'churuata' ? 'Churuata' : reserva.motivo || '';
     const client = new brevo_1.BrevoClient({ apiKey: brevoApiKey.value() });
     try {
         await client.transactionalEmails.sendTransacEmail({

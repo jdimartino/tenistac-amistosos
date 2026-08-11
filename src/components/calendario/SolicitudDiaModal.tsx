@@ -18,6 +18,7 @@ const TURNOS_OPCIONES = [
   { value: 'cualquiera', label: 'Cualquiera Disponible' },
   { value: 'maniana', label: 'Mañana' },
   { value: 'tarde', label: 'Tarde' },
+  { value: 'noche', label: 'Noche' },
 ];
 
 const MOTIVOS_OPCIONES = [
@@ -25,6 +26,7 @@ const MOTIVOS_OPCIONES = [
   { value: 'entrenamiento', label: 'Entrenamiento' },
   { value: 'clases', label: 'Clases' },
   { value: 'torneo', label: 'Torneo' },
+  { value: 'churuata', label: 'Churuata' },
 ];
 
 export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) => {

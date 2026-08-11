@@ -4,10 +4,10 @@ export const slotId = (fecha: string, turno: Turno, cancha: number): string =>
   `${fecha}_${turno}_${cancha}`;
 
 export const horaTurno = (turno: Turno): string =>
-  turno === 'maniana' ? '08:00' : '14:00';
+  turno === 'maniana' ? '08:00' : turno === 'tarde' ? '14:00' : '20:00';
 
 export const labelTurno = (turno: Turno): string =>
-  turno === 'maniana' ? 'Mañana' : 'Tarde';
+  turno === 'maniana' ? 'Mañana' : turno === 'tarde' ? 'Tarde' : 'Noche';
 
 export const resolverEstadoSlot = (
   reserva: Reserva | undefined,
@@ -25,7 +25,7 @@ export const construirSlotsDia = (
   reservas: Reserva[],
   bloqueos: Record<string, SlotBloqueado>
 ): SlotInfo[] => {
-  const turnos: Turno[] = ['maniana', 'tarde'];
+  const turnos: Turno[] = ['maniana', 'tarde', 'noche'];
   const slots: SlotInfo[] = [];
 
   for (const turno of turnos) {

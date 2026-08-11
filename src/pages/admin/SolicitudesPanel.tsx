@@ -13,6 +13,7 @@ import { formatoFechaCompleto, formatFechaVenezuela } from '../../lib/fecha';
 const TURNOS: { value: Turno; label: string }[] = [
   { value: 'maniana', label: 'Mañana' },
   { value: 'tarde', label: 'Tarde' },
+  { value: 'noche', label: 'Noche' },
 ];
 
 const CANCHAS = [1, 2, 3, 4, 5];
@@ -118,6 +119,7 @@ export const SolicitudesPanel = () => {
   const getTurnoPreferenciaLabel = (turno: string | null | undefined) => {
     if (turno === 'maniana') return 'Mañana';
     if (turno === 'tarde') return 'Tarde';
+    if (turno === 'noche') return 'Noche';
     return 'Cualquiera';
   };
 
@@ -149,7 +151,7 @@ export const SolicitudesPanel = () => {
             Prefiere: {getTurnoPreferenciaLabel(r.turnoPreferencia)}
           </p>
           <p className="text-sm text-gray-500">
-            Motivo: {r.motivo === 'amistoso' ? 'Amistoso' : r.motivo === 'entrenamiento' ? 'Entrenamiento' : r.motivo === 'clases' ? 'Clases' : r.motivo === 'torneo' ? 'Torneo' : r.motivo}
+            Motivo: {r.motivo === 'amistoso' ? 'Amistoso' : r.motivo === 'entrenamiento' ? 'Entrenamiento' : r.motivo === 'clases' ? 'Clases' : r.motivo === 'torneo' ? 'Torneo' : r.motivo === 'churuata' ? 'Churuata' : r.motivo}
           </p>
           {r.observaciones && <p className="mt-1 text-sm text-gray-500">{r.observaciones}</p>}
           

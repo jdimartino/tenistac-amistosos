@@ -1,10 +1,10 @@
 export type Rol = 'admin' | 'capitan' | 'subcapitan';
 
-export type Turno = 'maniana' | 'tarde';
+export type Turno = 'maniana' | 'tarde' | 'noche';
 
-export type PreferenciaTurno = 'maniana' | 'tarde' | 'cualquiera';
+export type PreferenciaTurno = 'maniana' | 'tarde' | 'noche' | 'cualquiera';
 
-export type Motivo = 'amistoso' | 'entrenamiento' | 'clases' | 'torneo';
+export type Motivo = 'amistoso' | 'entrenamiento' | 'clases' | 'torneo' | 'churuata';
 
 export type EstadoReserva = 'solicitado' | 'reservado' | 'cancelado';
 

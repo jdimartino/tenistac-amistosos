@@ -39,7 +39,7 @@ export const ReservaInfoModal = ({ reserva, onEditar, onClose }: ReservaInfoModa
           <span className="text-sm font-semibold text-gray-900">{formatoFechaCompleto(reserva.fecha)}</span>
           <span className="mx-2 text-gray-400">·</span>
           <span className="text-sm font-medium text-gray-700">
-            {reserva.turno === 'maniana' ? 'Turno Mañana' : reserva.turno === 'tarde' ? 'Turno Tarde' : 'Sin turno'}
+            {reserva.turno === 'maniana' ? 'Turno Mañana' : reserva.turno === 'tarde' ? 'Turno Tarde' : reserva.turno === 'noche' ? 'Turno Noche' : 'Sin turno'}
           </span>
         </div>
 
@@ -71,7 +71,7 @@ export const ReservaInfoModal = ({ reserva, onEditar, onClose }: ReservaInfoModa
           <div className="flex justify-between">
             <span className="text-sm text-gray-500">Motivo</span>
             <span className="text-sm font-medium text-gray-900">
-              {reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo}
+              {reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo === 'churuata' ? 'Churuata' : reserva.motivo}
             </span>
           </div>
           {reserva.observaciones && (

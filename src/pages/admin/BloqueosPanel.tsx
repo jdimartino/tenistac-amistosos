@@ -9,9 +9,10 @@ import type { Turno, Bloqueo } from '../../lib/tipos';
 import { formatoFechaCompleto } from '../../lib/fecha';
 
 const TURNOS: { value: Turno | 'ambos'; label: string }[] = [
-  { value: 'ambos', label: 'Ambos turnos' },
+  { value: 'ambos', label: 'Todos los turnos' },
   { value: 'maniana', label: 'Mañana' },
   { value: 'tarde', label: 'Tarde' },
+  { value: 'noche', label: 'Noche' },
 ];
 
 const CANCHAS_OPCIONES = [
@@ -165,7 +166,7 @@ export const BloqueosPanel = () => {
                 {formatoFechaCompleto(b.fechaInicio)} {b.fechaInicio !== b.fechaFin ? `al ${formatoFechaCompleto(b.fechaFin)}` : ''}
               </p>
               <p className="text-sm text-gray-600">
-                {b.turno === 'ambos' ? 'Ambos turnos' : b.turno === 'maniana' ? 'Mañana' : 'Tarde'}
+                {b.turno === 'ambos' ? 'Todos los turnos' : b.turno === 'maniana' ? 'Mañana' : b.turno === 'tarde' ? 'Tarde' : 'Noche'}
                 {' · '}
                 {b.cancha === null ? 'Todas las canchas' : `Cancha ${b.cancha}`}
               </p>

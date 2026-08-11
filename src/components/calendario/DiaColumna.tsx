@@ -16,11 +16,12 @@ export const DiaColumna = ({ fecha, slots, pendientes, onEditarReserva, onBloque
   const diaSemana = new Date(`${fecha}T12:00:00`).getDay();
   const headerFinde = diaSemana === 0 ? 'bg-sky-100 rounded-t-2xl -mx-3 -mt-3 px-3 pt-3 pb-2' : diaSemana === 6 ? 'bg-sky-50 rounded-t-2xl -mx-3 -mt-3 px-3 pt-3 pb-2' : '';
 
-  const turnos: Turno[] = ['maniana', 'tarde'];
+  const turnos: Turno[] = ['maniana', 'tarde', 'noche'];
 
   const getTurnoLabel = (t: string | null) => {
     if (t === 'maniana') return 'Turno Mañana';
     if (t === 'tarde') return 'Turno Tarde';
+    if (t === 'noche') return 'Turno Noche';
     return 'Cualquiera';
   };
 
@@ -51,7 +52,7 @@ export const DiaColumna = ({ fecha, slots, pendientes, onEditarReserva, onBloque
         {turnos.map((turno) => (
           <div key={turno} className="space-y-2">
             <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500">
-              {turno === 'maniana' ? 'Turno Mañana 08:00' : 'Turno Tarde 14:00'}
+              {turno === 'maniana' ? 'Turno Mañana 08:00' : turno === 'tarde' ? 'Turno Tarde 14:00' : 'Turno Noche 20:00'}
             </h3>
             <div className="grid grid-cols-5 gap-2">
               {slots

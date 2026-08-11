@@ -44,6 +44,7 @@ export const DiaCard = ({ fecha, reservas, slotsBloqueadosCount, totalSlots, onS
   const getTurnoLabel = (turno: string | null) => {
     if (turno === 'maniana') return 'Turno Mañana';
     if (turno === 'tarde') return 'Turno Tarde';
+    if (turno === 'noche') return 'Turno Noche';
     return 'Cualquiera';
   };
 
@@ -96,7 +97,7 @@ export const DiaCard = ({ fecha, reservas, slotsBloqueadosCount, totalSlots, onS
           <div className="font-semibold">Reservado</div>
           {reservasReservadas.map((r) => (
             <div key={r.id}>
-              <div>Canchas {r.canchas?.join(', ') || '?'} - {r.turno === 'maniana' ? 'Turno Mañana' : 'Turno Tarde'}</div>
+              <div>Canchas {r.canchas?.join(', ') || '?'} - {r.turno === 'maniana' ? 'Turno Mañana' : r.turno === 'tarde' ? 'Turno Tarde' : 'Turno Noche'}</div>
               <div className="text-gray-600 font-medium">{r.capitanNombre}</div>
               {r.capitanEquipo && <div className="text-gray-500">({r.capitanEquipo})</div>}
             </div>
@@ -109,7 +110,7 @@ export const DiaCard = ({ fecha, reservas, slotsBloqueadosCount, totalSlots, onS
           <div className="font-semibold">Parcialmente reservado</div>
           {reservasReservadas.map((r) => (
             <div key={r.id}>
-              <div>Canchas {r.canchas?.join(', ') || '?'} - {r.turno === 'maniana' ? 'Turno Mañana' : 'Turno Tarde'} - {r.capitanNombre}</div>
+              <div>Canchas {r.canchas?.join(', ') || '?'} - {r.turno === 'maniana' ? 'Turno Mañana' : r.turno === 'tarde' ? 'Turno Tarde' : 'Turno Noche'} - {r.capitanNombre}</div>
               {r.capitanEquipo && <div className="text-gray-500">({r.capitanEquipo})</div>}
             </div>
           ))}

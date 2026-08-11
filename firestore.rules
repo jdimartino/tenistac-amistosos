@@ -32,8 +32,8 @@ service cloud.firestore {
         && request.resource.data.capitanUid == request.auth.uid
         && request.resource.data.turno == null
         && request.resource.data.canchas.size() == 0
-        && request.resource.data.turnoPreferencia in ['maniana', 'tarde', 'cualquiera']
-        && request.resource.data.motivo in ['amistoso', 'entrenamiento', 'clases', 'torneo']
+        && request.resource.data.turnoPreferencia in ['maniana', 'tarde', 'noche', 'cualquiera']
+        && request.resource.data.motivo in ['amistoso', 'entrenamiento', 'clases', 'torneo', 'churuata']
         && !exists(/databases/$(database)/documents/bloqueos/$(request.resource.data.fecha));
 
       // Capitán puede cancelar su propia solicitud pendiente; admin puede borrar cualquier reserva

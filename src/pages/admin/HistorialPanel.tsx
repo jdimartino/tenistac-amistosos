@@ -54,7 +54,7 @@ export const HistorialPanel = () => {
             const evento = TIPOS_EVENTO[log.tipo];
             const detalle =
               log.tipo === 'reserva_aprobada'
-                ? `Turno ${log.turno === 'maniana' ? 'Mañana' : 'Tarde'} · Canchas ${log.canchas?.join(', ') || '?'}` :
+                ? `Turno ${log.turno === 'maniana' ? 'Mañana' : log.turno === 'tarde' ? 'Tarde' : 'Noche'} · Canchas ${log.canchas?.join(', ') || '?'}` :
               log.tipo === 'reserva_rechazada'
                 ? `Motivo: ${log.motivo || '-'}`
                 : 'Eliminada sin notificación';

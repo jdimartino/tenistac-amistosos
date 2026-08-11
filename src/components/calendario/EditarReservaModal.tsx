@@ -16,6 +16,7 @@ interface EditarReservaModalProps {
 const TURNOS: { value: Turno; label: string }[] = [
   { value: 'maniana', label: 'Mañana' },
   { value: 'tarde', label: 'Tarde' },
+  { value: 'noche', label: 'Noche' },
 ];
 
 const MOTIVOS_OPCIONES = [
@@ -23,6 +24,7 @@ const MOTIVOS_OPCIONES = [
   { value: 'entrenamiento', label: 'Entrenamiento' },
   { value: 'clases', label: 'Clases' },
   { value: 'torneo', label: 'Torneo' },
+  { value: 'churuata', label: 'Churuata' },
 ];
 
 const CANCHAS = [1, 2, 3, 4, 5];

@@ -140,7 +140,7 @@ const NotificationBell = () => {
                       vs {s.equipoRival} · {s.capitanEquipo}
                     </div>
                     <div className="text-xs text-blue-600">
-                      {s.motivo === 'amistoso' ? 'Amistoso' : s.motivo === 'entrenamiento' ? 'Entrenamiento' : s.motivo === 'clases' ? 'Clases' : s.motivo === 'torneo' ? 'Torneo' : s.motivo}
+                      {s.motivo === 'amistoso' ? 'Amistoso' : s.motivo === 'entrenamiento' ? 'Entrenamiento' : s.motivo === 'clases' ? 'Clases' : s.motivo === 'torneo' ? 'Torneo' : s.motivo === 'churuata' ? 'Churuata' : s.motivo}
                     </div>
                   </Link>
                 ))}

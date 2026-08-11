@@ -19,11 +19,11 @@ const brevoApiKey = defineSecret('BREVO_API_KEY');
 const CANCHAS = [1, 2, 3, 4, 5];
 const CANCHAS_SET = new Set(CANCHAS);
 
-type Turno = 'maniana' | 'tarde';
+type Turno = 'maniana' | 'tarde' | 'noche';
 type Rol = 'admin' | 'capitan' | 'subcapitan';
 
-const TURNOS_VALIDOS: Turno[] = ['maniana', 'tarde'];
-const TURNOS_AMBOS_VALIDOS: Array<Turno | 'ambos'> = ['maniana', 'tarde', 'ambos'];
+const TURNOS_VALIDOS: Turno[] = ['maniana', 'tarde', 'noche'];
+const TURNOS_AMBOS_VALIDOS: Array<Turno | 'ambos'> = ['maniana', 'tarde', 'noche', 'ambos'];
 const ROLES_VALIDOS: Rol[] = ['admin', 'capitan', 'subcapitan'];
 const TIPOS_BLOQUEO = ['dia', 'turno', 'rango'];
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -155,7 +155,7 @@ const expandirBloqueo = async (
     actual = sumarDias(actual, 1);
   }
 
-  const turnos: Turno[] = turno === 'ambos' ? ['maniana', 'tarde'] : [turno];
+  const turnos: Turno[] = turno === 'ambos' ? ['maniana', 'tarde', 'noche'] : [turno];
   const canchas = cancha === null ? CANCHAS : [cancha];
 
   const batch = db.batch();
@@ -784,8 +784,8 @@ export const onReservaSolicitada = onDocumentCreated(
       return;
     }
 
-    const turnoLabel = turnoPreferencia === 'maniana' ? 'Mañana' : turnoPreferencia === 'tarde' ? 'Tarde' : 'Cualquiera';
-    const motivoLabel = motivo === 'amistoso' ? 'Amistoso' : motivo === 'entrenamiento' ? 'Entrenamiento' : motivo === 'clases' ? 'Clases' : motivo === 'torneo' ? 'Torneo' : motivo || '';
+    const turnoLabel = turnoPreferencia === 'maniana' ? 'Mañana' : turnoPreferencia === 'tarde' ? 'Tarde' : turnoPreferencia === 'noche' ? 'Noche' : 'Cualquiera';
+    const motivoLabel = motivo === 'amistoso' ? 'Amistoso' : motivo === 'entrenamiento' ? 'Entrenamiento' : motivo === 'clases' ? 'Clases' : motivo === 'torneo' ? 'Torneo' : motivo === 'churuata' ? 'Churuata' : motivo || '';
     const fechaSolicitud = solicitadoEn ? formatFechaVenezuela(solicitadoEn) : 'No disponible';
 
     const client = new BrevoClient({ apiKey: brevoApiKey.value() });
@@ -1001,8 +1001,8 @@ export const rechazarReserva = onCall<{ reservaId: string; motivo: string }, Pro
       return { success: true };
     }
 
-    const turnoLabel = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : 'Cualquiera';
-    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo || '';
+    const turnoLabel = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : reserva.turnoPreferencia === 'noche' ? 'Noche' : 'Cualquiera';
+    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo === 'churuata' ? 'Churuata' : reserva.motivo || '';
 
     const client = new BrevoClient({ apiKey: brevoApiKey.value() });
 
@@ -1168,9 +1168,9 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
       return { success: true };
     }
 
-    const turnoLabelReserva = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : 'Cualquiera';
-    const turnoLabelAsignado = turno === 'maniana' ? 'Mañana' : 'Tarde';
-    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo || '';
+    const turnoLabelReserva = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : reserva.turnoPreferencia === 'noche' ? 'Noche' : 'Cualquiera';
+    const turnoLabelAsignado = turno === 'maniana' ? 'Mañana' : turno === 'tarde' ? 'Tarde' : 'Noche';
+    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo === 'churuata' ? 'Churuata' : reserva.motivo || '';
 
     const client = new BrevoClient({ apiKey: brevoApiKey.value() });
 
