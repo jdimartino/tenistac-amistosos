@@ -48,9 +48,9 @@ export const DiaCard = ({ fecha, reservas, slotsBloqueadosCount, totalSlots, onS
     return 'Cualquiera';
   };
 
-  const [, mes, dia] = fecha.split('-');
-  const fechaCorta = `${dia}/${mes}`;
-  const diaCompleto = new Date(`${fecha}T12:00:00`).toLocaleDateString('es-AR', { weekday: 'long' });
+  const [anio, mes, dia] = fecha.split('-');
+  const fechaCorta = `${dia}/${mes}/${anio}`;
+  const diaCompleto = new Date(`${fecha}T12:00:00`).toLocaleDateString('es-VE', { weekday: 'long' });
   const diaSemana = new Date(`${fecha}T12:00:00`).getDay();
   const headerFinde = diaSemana === 0 ? 'bg-sky-100 rounded-t-md -mx-3 -mt-3 px-3 pt-3 pb-1' : diaSemana === 6 ? 'bg-sky-50 rounded-t-md -mx-3 -mt-3 px-3 pt-3 pb-1' : '';
 

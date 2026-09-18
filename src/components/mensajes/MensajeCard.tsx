@@ -18,9 +18,10 @@ const badgeColor = (categoria: Mensaje['categoria']) => {
 const formatDate = (fecha: Date | undefined): string => {
   if (!fecha) return '';
   const d = fecha instanceof Date ? fecha : new Date(fecha);
-  return d.toLocaleString('es-AR', {
+  return d.toLocaleString('es-VE', {
     day: '2-digit',
     month: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });

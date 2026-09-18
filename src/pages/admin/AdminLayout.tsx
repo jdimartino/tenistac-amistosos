@@ -7,6 +7,7 @@ const tabs = [
   { to: '/admin/solicitudes', label: 'Solicitudes' },
   { to: '/admin/historial', label: 'Historial' },
   { to: '/admin/bloqueos', label: 'Bloqueos' },
+  { to: '/admin/correos', label: 'Uso de correos' },
 ];
 
 export const AdminLayout = () => {

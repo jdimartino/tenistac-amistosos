@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useCalendario } from '../../hooks/useCalendario';
 import { useBloqueos } from '../../hooks/useBloqueos';
-import { construirSlotsDia, getSolicitudesPendientesDia } from '../../lib/slot';
+import { construirSlotsDia, getSolicitudesPendientesDia, getChuruataSinCanchaDia } from '../../lib/slot';
 import { generarRangoDias } from '../../lib/fecha';
 import { DiaColumna } from './DiaColumna';
 import { EditarReservaModal } from './EditarReservaModal';
@@ -51,12 +51,14 @@ export const CalendarioGrid = ({ fechaInicio, fechaFin }: CalendarioGridProps) =
         {dias.map((fecha) => {
           const slots = construirSlotsDia(fecha, CANCHAS, reservas, bloqueos);
           const pendientes = getSolicitudesPendientesDia(fecha, reservas);
+          const churuataSinCancha = getChuruataSinCanchaDia(fecha, reservas);
           return (
             <DiaColumna
               key={fecha}
               fecha={fecha}
               slots={slots}
               pendientes={pendientes}
+              churuataSinCancha={churuataSinCancha}
               onEditarReserva={setReservaViendo}
               onBloqueoClick={setSlotDesbloqueando}
             />

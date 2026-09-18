@@ -56,6 +56,10 @@ export const getSolicitudesPendientesDia = (fecha: string, reservas: Reserva[]):
   return reservas.filter(r => r.fecha === fecha && r.estado === 'solicitado');
 };
 
+export const getChuruataSinCanchaDia = (fecha: string, reservas: Reserva[]): Reserva[] => {
+  return reservas.filter(r => r.fecha === fecha && r.estado === 'reservado' && r.solicitaChuruata && r.canchas.length === 0);
+};
+
 export const coloresSlot: Record<EstadoSlot, string> = {
   disponible: 'bg-white border-gray-200 hover:bg-gray-50 text-gray-900',
   solicitado: 'bg-yellow-300 border-yellow-400 text-yellow-900 hover:bg-yellow-400',

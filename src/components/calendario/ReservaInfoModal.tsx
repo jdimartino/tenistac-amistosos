@@ -71,9 +71,15 @@ export const ReservaInfoModal = ({ reserva, onEditar, onClose }: ReservaInfoModa
           <div className="flex justify-between">
             <span className="text-sm text-gray-500">Motivo</span>
             <span className="text-sm font-medium text-gray-900">
-              {reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo === 'churuata' ? 'Churuata' : reserva.motivo}
+              {reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo}
             </span>
           </div>
+          {reserva.solicitaChuruata && (
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-500">Churuata</span>
+              <span className="text-sm font-medium text-orange-600">Sí</span>
+            </div>
+          )}
           {reserva.observaciones && (
             <div className="flex justify-between">
               <span className="text-sm text-gray-500">Observaciones</span>

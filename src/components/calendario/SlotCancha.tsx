@@ -54,6 +54,11 @@ export const SlotCancha = ({ slot, onEditar, onBloqueoClick }: SlotCanchaProps) 
               {slot.reserva.capitanEquipo}
             </span>
           )}
+          {slot.reserva.solicitaChuruata && (
+            <span className="text-[8px] text-orange-600 font-medium truncate w-full">
+              Churuata
+            </span>
+          )}
         </>
       )}
     </button>

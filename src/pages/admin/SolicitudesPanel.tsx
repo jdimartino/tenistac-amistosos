@@ -21,7 +21,7 @@ const CANCHAS = [1, 2, 3, 4, 5];
 export const SolicitudesPanel = () => {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
-  const [asignaciones, setAsignaciones] = useState<Record<string, { turno: Turno; canchas: number[] }>>({});
+  const [asignaciones, setAsignaciones] = useState<Record<string, { turno: Turno; canchas: number[]; solicitaChuruata: boolean }>>({});
   const [asignandoId, setAsignandoId] = useState<string | null>(null);
   const [rechazandoId, setRechazandoId] = useState<string | null>(null);
   const [reservaEditando, setReservaEditando] = useState<Reserva | null>(null);
@@ -43,16 +43,28 @@ export const SolicitudesPanel = () => {
 
   const handleAsignar = async (reserva: Reserva) => {
     const asignacion = asignaciones[reserva.id];
-    if (!asignacion || asignacion.canchas.length === 0) {
-      alert('Selecciona turno y al menos una cancha antes de asignar');
+    if (!asignacion || !asignacion.turno) {
+      alert('Selecciona un turno antes de asignar');
+      return;
+    }
+    if (asignacion.canchas.length === 0 && !asignacion.solicitaChuruata) {
+      alert('Selecciona al menos una cancha o marca Churuata antes de asignar');
       return;
     }
     setAsignandoId(reserva.id);
     try {
       const aprobarFn = httpsCallable(functions, 'aprobarReserva');
-      await aprobarFn({ reservaId: reserva.id, turno: asignacion.turno, canchas: asignacion.canchas });
+      await aprobarFn({
+        reservaId: reserva.id,
+        turno: asignacion.turno,
+        canchas: asignacion.canchas,
+        solicitaChuruata: asignacion.solicitaChuruata || false,
+      });
+      alert('Solicitud asignada correctamente');
     } catch (err) {
       console.error('Error al asignar:', err);
+      const msg = err instanceof Error ? err.message : 'Error al asignar la solicitud';
+      alert(msg);
     } finally {
       setAsignandoId(null);
     }
@@ -111,9 +123,22 @@ export const SolicitudesPanel = () => {
           ...prev[reservaId],
           turno: prev[reservaId]?.turno || 'maniana',
           canchas: newCanchas,
+          solicitaChuruata: prev[reservaId]?.solicitaChuruata || false,
         },
       };
     });
+  };
+
+  const toggleChuruata = (reservaId: string) => {
+    setAsignaciones(prev => ({
+      ...prev,
+      [reservaId]: {
+        ...prev[reservaId],
+        turno: prev[reservaId]?.turno || 'maniana',
+        canchas: prev[reservaId]?.canchas || [],
+        solicitaChuruata: !prev[reservaId]?.solicitaChuruata,
+      },
+    }));
   };
 
   const getTurnoPreferenciaLabel = (turno: string | null | undefined) => {
@@ -151,8 +176,11 @@ export const SolicitudesPanel = () => {
             Prefiere: {getTurnoPreferenciaLabel(r.turnoPreferencia)}
           </p>
           <p className="text-sm text-gray-500">
-            Motivo: {r.motivo === 'amistoso' ? 'Amistoso' : r.motivo === 'entrenamiento' ? 'Entrenamiento' : r.motivo === 'clases' ? 'Clases' : r.motivo === 'torneo' ? 'Torneo' : r.motivo === 'churuata' ? 'Churuata' : r.motivo}
+            Motivo: {r.motivo === 'amistoso' ? 'Amistoso' : r.motivo === 'clases' ? 'Clases' : r.motivo === 'torneo' ? 'Torneo' : r.motivo}
           </p>
+          {r.solicitaChuruata && (
+            <p className="text-sm text-orange-600 font-medium">Solicita churuata</p>
+          )}
           {r.observaciones && <p className="mt-1 text-sm text-gray-500">{r.observaciones}</p>}
           
           <div className="mt-3 space-y-2">
@@ -182,6 +210,17 @@ export const SolicitudesPanel = () => {
                     C{c}
                   </label>
                 ))}
+                <label className={`flex items-center gap-1 rounded border px-2 py-1 text-sm cursor-pointer ${
+                  asignaciones[r.id]?.solicitaChuruata ? 'bg-orange-100 border-orange-500 text-orange-800' : 'border-gray-300 hover:bg-gray-50'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={asignaciones[r.id]?.solicitaChuruata || false}
+                    onChange={() => toggleChuruata(r.id)}
+                    className="rounded"
+                  />
+                  Churuata
+                </label>
               </div>
             </div>
           </div>

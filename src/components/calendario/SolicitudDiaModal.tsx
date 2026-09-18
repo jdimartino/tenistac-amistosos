@@ -23,16 +23,15 @@ const TURNOS_OPCIONES = [
 
 const MOTIVOS_OPCIONES = [
   { value: 'amistoso', label: 'Amistoso' },
-  { value: 'entrenamiento', label: 'Entrenamiento' },
   { value: 'clases', label: 'Clases' },
   { value: 'torneo', label: 'Torneo' },
-  { value: 'churuata', label: 'Churuata' },
 ];
 
 export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) => {
   const { usuario } = useAuth();
   const [turnoPreferencia, setTurnoPreferencia] = useState<PreferenciaTurno>('cualquiera');
   const [motivo, setMotivo] = useState<Motivo>('amistoso');
+  const [solicitaChuruata, setSolicitaChuruata] = useState(false);
   const [equipoRival, setEquipoRival] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,6 +56,7 @@ export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) =>
         capitanNombre,
         equipoRival,
         motivo,
+        solicitaChuruata,
         observaciones,
         solicitadoEn: serverTimestamp(),
         aprobadoEn: null,
@@ -77,7 +77,7 @@ export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) =>
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Fecha</label>
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-700">
-            {new Date(`${fecha}T12:00:00`).toLocaleDateString('es-AR')}
+            {new Date(`${fecha}T12:00:00`).toLocaleDateString('es-VE')}
           </div>
         </div>
 
@@ -108,6 +108,18 @@ export const SolicitudDiaModal = ({ fecha, onClose }: SolicitudDiaModalProps) =>
           onChange={(e) => setMotivo(e.target.value as Motivo)}
           options={MOTIVOS_OPCIONES}
         />
+
+        <label className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium cursor-pointer ${
+          solicitaChuruata ? 'bg-green-100 border-green-500 text-green-800' : 'border-gray-300 hover:bg-gray-50'
+        }`}>
+          <input
+            type="checkbox"
+            checked={solicitaChuruata}
+            onChange={(e) => setSolicitaChuruata(e.target.checked)}
+            className="rounded"
+          />
+          Solicita Churuata
+        </label>
 
         <Input
           label="Equipo rival"

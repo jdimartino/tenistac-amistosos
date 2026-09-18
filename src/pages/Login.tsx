@@ -36,7 +36,7 @@ export const Login = () => {
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg">
         <h1 className="mb-1 text-center text-2xl font-bold text-gray-900">Tenis Táchira</h1>
         <p className="text-center text-sm text-gray-500">Solicitud de canchas de tenis</p>
-        <p className="mb-6 text-center text-xs text-gray-400">Version Beta 1.0</p>
+        <p className="mb-6 text-center text-xs text-gray-400">Version 1.3</p>
         <p className="mb-6 text-center text-xs text-gray-400">By #JDMRules</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">

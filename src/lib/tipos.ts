@@ -4,7 +4,7 @@ export type Turno = 'maniana' | 'tarde' | 'noche';
 
 export type PreferenciaTurno = 'maniana' | 'tarde' | 'noche' | 'cualquiera';
 
-export type Motivo = 'amistoso' | 'entrenamiento' | 'clases' | 'torneo' | 'churuata';
+export type Motivo = 'amistoso' | 'clases' | 'torneo';
 
 export type EstadoReserva = 'solicitado' | 'reservado' | 'cancelado';
 
@@ -43,6 +43,7 @@ export interface Reserva {
   capitanUid: string;
   equipoRival: string;
   motivo: Motivo;
+  solicitaChuruata: boolean;
   observaciones: string;
   solicitadoEn: Date;
   aprobadoEn: Date | null;
@@ -56,6 +57,7 @@ export interface ReservaInput {
   capitanNombre: string;
   equipoRival: string;
   motivo: Motivo;
+  solicitaChuruata?: boolean;
   observaciones: string;
 }
 
@@ -140,4 +142,24 @@ export interface MensajeInput {
   asunto: string;
   cuerpo: string;
   threadId?: string;
+}
+
+// USO DE CORREOS
+export type EmailUsageEstado = 'normal' | 'advertencia' | 'critico';
+
+export interface EmailUsage {
+  provider: string;
+  planType: string;
+  enviados: number;
+  restantes: number;
+  limite: number;
+  limiteNominal: number | null;
+  limiteNominalPeriodo: string | null;
+  porcentaje: number;
+  estado: EmailUsageEstado;
+  periodoInicio: string;
+  periodoFin: string;
+  timezone: string;
+  fechaReinicio: string | null;
+  notas: string | null;
 }

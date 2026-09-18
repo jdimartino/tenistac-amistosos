@@ -11,6 +11,7 @@ const UsuariosPanel = lazy(() => import('./pages/admin/UsuariosPanel').then((m) 
 const SolicitudesPanel = lazy(() => import('./pages/admin/SolicitudesPanel').then((m) => ({ default: m.SolicitudesPanel })));
 const HistorialPanel = lazy(() => import('./pages/admin/HistorialPanel').then((m) => ({ default: m.HistorialPanel })));
 const BloqueosPanel = lazy(() => import('./pages/admin/BloqueosPanel').then((m) => ({ default: m.BloqueosPanel })));
+const UsoCorreosPanel = lazy(() => import('./pages/admin/UsoCorreosPanel').then((m) => ({ default: m.UsoCorreosPanel })));
 const Mensajes = lazy(() => import('./pages/Mensajes').then((m) => ({ default: m.Mensajes })));
 const MensajeDetalle = lazy(() => import('./pages/MensajeDetalle').then((m) => ({ default: m.MensajeDetalle })));
 
@@ -74,6 +75,7 @@ function App() {
             <Route path="solicitudes" element={<SolicitudesPanel />} />
             <Route path="historial" element={<HistorialPanel />} />
             <Route path="bloqueos" element={<BloqueosPanel />} />
+            <Route path="correos" element={<UsoCorreosPanel />} />
           </Route>
           <Route path="/mensajes" element={<ProtectedRoute><Mensajes /></ProtectedRoute>} />
           <Route path="/mensajes/:id" element={<ProtectedRoute><MensajeDetalle /></ProtectedRoute>} />

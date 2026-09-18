@@ -6,13 +6,14 @@ interface DiaColumnaProps {
   fecha: string;
   slots: SlotInfo[];
   pendientes: Reserva[];
+  churuataSinCancha?: Reserva[];
   onEditarReserva?: (reserva: Reserva) => void;
   onBloqueoClick?: (slot: SlotInfo) => void;
 }
 
-export const DiaColumna = ({ fecha, slots, pendientes, onEditarReserva, onBloqueoClick }: DiaColumnaProps) => {
-  const [, mes, dia] = fecha.split('-');
-  const label = `${nombreDiaCompleto(fecha)} ${dia}/${mes}`;
+export const DiaColumna = ({ fecha, slots, pendientes, churuataSinCancha = [], onEditarReserva, onBloqueoClick }: DiaColumnaProps) => {
+  const [anio, mes, dia] = fecha.split('-');
+  const label = `${nombreDiaCompleto(fecha)} ${dia}/${mes}/${anio}`;
   const diaSemana = new Date(`${fecha}T12:00:00`).getDay();
   const headerFinde = diaSemana === 0 ? 'bg-sky-100 rounded-t-2xl -mx-3 -mt-3 px-3 pt-3 pb-2' : diaSemana === 6 ? 'bg-sky-50 rounded-t-2xl -mx-3 -mt-3 px-3 pt-3 pb-2' : '';
 
@@ -43,6 +44,23 @@ export const DiaColumna = ({ fecha, slots, pendientes, onEditarReserva, onBloque
                 {p.capitanEquipo && ` (${p.capitanEquipo})`}
               </span>
               <span>Pref: {getTurnoLabel(p.turnoPreferencia)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {churuataSinCancha.length > 0 && (
+        <div className="mb-3 rounded-lg bg-orange-50 border border-orange-200 p-2">
+          <div className="text-xs font-semibold text-orange-800 mb-1">
+            Churuata ({churuataSinCancha.length})
+          </div>
+          {churuataSinCancha.map((r) => (
+            <div key={r.id} className="text-[10px] text-orange-700 flex justify-between">
+              <span>
+                {r.capitanNombre}
+                {r.capitanEquipo && ` (${r.capitanEquipo})`}
+              </span>
+              <span>{getTurnoLabel(r.turno)}</span>
             </div>
           ))}
         </div>

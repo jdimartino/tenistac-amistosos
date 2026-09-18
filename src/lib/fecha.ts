@@ -78,10 +78,12 @@ export const formatoFechaCompleto = (fecha: string): string => {
 
 export const formatFechaVenezuela = (date: Date | any): string => {
   const d = date.toDate ? date.toDate() : new Date(date);
-  return new Intl.DateTimeFormat('es-VE', {
-    timeZone: 'America/Caracas',
-    dateStyle: 'short',
-    timeStyle: 'short',
-    hour12: true,
-  }).format(d);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  const hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'p.m.' : 'a.m.';
+  const hours12 = hours % 12 || 12;
+  return `${day}/${month}/${year}, ${hours12}:${minutes} ${ampm}`;
 };

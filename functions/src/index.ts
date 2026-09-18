@@ -37,11 +37,11 @@ const validarFecha = (fecha: string, fieldName: string): void => {
   }
 };
 
-const validarCanchas = (canchas: unknown): number[] => {
+const validarCanchas = (canchas: unknown, solicitaChuruata?: boolean): number[] => {
   if (!Array.isArray(canchas)) {
     throw new HttpsError('invalid-argument', 'canchas debe ser un array.');
   }
-  if (canchas.length === 0) {
+  if (canchas.length === 0 && !solicitaChuruata) {
     throw new HttpsError('invalid-argument', 'Debe seleccionar al menos una cancha.');
   }
   for (const c of canchas) {
@@ -97,11 +97,13 @@ const assertAdmin = async (uid: string) => {
   }
 };
 
+const EXCLUDED_EMAILS = ['lucrevitar@gmail.com', 'nunodb@hotmail.com'];
+
 const getAdminEmails = async (): Promise<string[]> => {
   const adminsSnap = await db.collection('usuarios').where('role', '==', 'admin').where('activo', '==', true).get();
   return adminsSnap.docs
     .map(doc => doc.data().email)
-    .filter(email => email && typeof email === 'string' && email.trim()) as string[];
+    .filter(email => email && typeof email === 'string' && email.trim() && !EXCLUDED_EMAILS.includes(email)) as string[];
 };
 
 const sendAdminNotification = async (subject: string, htmlContent: string) => {
@@ -132,12 +134,19 @@ const sumarDias = (fecha: string, dias: number): string => {
 
 const formatFechaVenezuela = (date: any): string => {
   const d = date.toDate ? date.toDate() : new Date(date);
-  return new Intl.DateTimeFormat('es-VE', {
-    timeZone: 'America/Caracas',
-    dateStyle: 'short',
-    timeStyle: 'short',
-    hour12: true,
-  }).format(d);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  const hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'p.m.' : 'a.m.';
+  const hours12 = hours % 12 || 12;
+  return `${day}/${month}/${year}, ${hours12}:${minutes} ${ampm}`;
+};
+
+const formatFechaLarga = (fecha: string): string => {
+  const [anio, mes, dia] = fecha.split('-');
+  return `${dia}/${mes}/${anio}`;
 };
 
 const expandirBloqueo = async (
@@ -537,7 +546,7 @@ export const createBloqueo = onCall<BloqueoInput, Promise<{ id: string }>>(
         <h2 style="color: #ef4444;">Nuevo bloqueo de cancha</h2>
         <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
           <p><strong>Tipo:</strong> ${tipo}</p>
-          <p><strong>Fechas:</strong> ${fechaInicio} a ${fechaFin}</p>
+          <p><strong>Fechas:</strong> ${formatFechaLarga(fechaInicio)} a ${formatFechaLarga(fechaFin)}</p>
           <p><strong>Turno:</strong> ${turno}</p>
           <p><strong>Cancha:</strong> ${canchalabel}</p>
           <p><strong>Motivo:</strong> ${motivo}</p>
@@ -583,7 +592,7 @@ export const deleteBloqueo = onCall<{ id: string }, void>(async (request) => {
         <h2 style="color: #ef4444;">Bloqueo de cancha eliminado</h2>
         <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
           <p><strong>Tipo:</strong> ${bloqueoData.tipo}</p>
-          <p><strong>Fechas:</strong> ${bloqueoData.fechaInicio} a ${bloqueoData.fechaFin}</p>
+          <p><strong>Fechas:</strong> ${formatFechaLarga(bloqueoData.fechaInicio)} a ${formatFechaLarga(bloqueoData.fechaFin)}</p>
           <p><strong>Turno:</strong> ${bloqueoData.turno}</p>
           <p><strong>Cancha:</strong> ${canchalabel}</p>
           <p><strong>Motivo:</strong> ${bloqueoData.motivo}</p>
@@ -750,7 +759,7 @@ export const onReservaSolicitada = onDocumentCreated(
     const data = event.data?.data();
     if (!data || data.estado !== 'solicitado') return;
 
-    const { capitanUid, capitanNombre, capitanEquipo, equipoRival, fecha, turnoPreferencia, motivo, observaciones, solicitadoEn } = data as {
+    const { capitanUid, capitanNombre, capitanEquipo, equipoRival, fecha, turnoPreferencia, motivo, solicitaChuruata, observaciones, solicitadoEn } = data as {
       capitanUid: string;
       capitanNombre: string;
       capitanEquipo: string;
@@ -758,6 +767,7 @@ export const onReservaSolicitada = onDocumentCreated(
       fecha: string;
       turnoPreferencia: string;
       motivo?: string;
+      solicitaChuruata?: boolean;
       observaciones?: string;
       solicitadoEn?: any;
     };
@@ -767,7 +777,7 @@ export const onReservaSolicitada = onDocumentCreated(
     const recipientEmails: string[] = [];
     for (const doc of adminsSnap.docs) {
       const email = doc.data().email;
-      if (email && typeof email === 'string' && email.trim()) recipientEmails.push(email);
+      if (email && typeof email === 'string' && email.trim() && !EXCLUDED_EMAILS.includes(email)) recipientEmails.push(email);
     }
 
     // Add captain email
@@ -775,7 +785,7 @@ export const onReservaSolicitada = onDocumentCreated(
       const captainSnap = await db.collection('usuarios').doc(capitanUid).get();
       if (captainSnap.exists) {
         const email = captainSnap.data()?.email;
-        if (email && typeof email === 'string' && email.trim() && !recipientEmails.includes(email)) recipientEmails.push(email);
+        if (email && typeof email === 'string' && email.trim() && !recipientEmails.includes(email) && !EXCLUDED_EMAILS.includes(email)) recipientEmails.push(email);
       }
     }
 
@@ -785,7 +795,7 @@ export const onReservaSolicitada = onDocumentCreated(
     }
 
     const turnoLabel = turnoPreferencia === 'maniana' ? 'Mañana' : turnoPreferencia === 'tarde' ? 'Tarde' : turnoPreferencia === 'noche' ? 'Noche' : 'Cualquiera';
-    const motivoLabel = motivo === 'amistoso' ? 'Amistoso' : motivo === 'entrenamiento' ? 'Entrenamiento' : motivo === 'clases' ? 'Clases' : motivo === 'torneo' ? 'Torneo' : motivo === 'churuata' ? 'Churuata' : motivo || '';
+    const motivoLabel = motivo === 'amistoso' ? 'Amistoso' : motivo === 'clases' ? 'Clases' : motivo === 'torneo' ? 'Torneo' : motivo || '';
     const fechaSolicitud = solicitadoEn ? formatFechaVenezuela(solicitadoEn) : 'No disponible';
 
     const client = new BrevoClient({ apiKey: brevoApiKey.value() });
@@ -802,9 +812,10 @@ export const onReservaSolicitada = onDocumentCreated(
               <p><strong>Capitán:</strong> ${capitanNombre}</p>
               <p><strong>Equipo:</strong> ${capitanEquipo}</p>
               <p><strong>Rival:</strong> ${equipoRival}</p>
-              <p><strong>Fecha:</strong> ${fecha}</p>
+              <p><strong>Fecha:</strong> ${formatFechaLarga(fecha)}</p>
               <p><strong>Prefiere:</strong> ${turnoLabel}</p>
               <p><strong>Motivo:</strong> ${motivoLabel}</p>
+              ${solicitaChuruata ? '<p><strong>Solicita churuata:</strong> Sí</p>' : ''}
               <p><strong>Solicitado el:</strong> ${fechaSolicitud}</p>
               ${observaciones ? `<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;"><p><strong>Observaciones:</strong></p><p style="white-space: pre-wrap;">${observaciones}</p>` : ''}
             </div>
@@ -983,7 +994,7 @@ export const rechazarReserva = onCall<{ reservaId: string; motivo: string }, Pro
       const captainSnap = await db.collection('usuarios').doc(reserva.capitanUid).get();
       if (captainSnap.exists) {
         const email = captainSnap.data()?.email;
-        if (email && typeof email === 'string' && email.trim()) recipientEmails.push(email);
+        if (email && typeof email === 'string' && email.trim() && !EXCLUDED_EMAILS.includes(email)) recipientEmails.push(email);
       }
     }
 
@@ -991,7 +1002,7 @@ export const rechazarReserva = onCall<{ reservaId: string; motivo: string }, Pro
     const adminsSnap = await db.collection('usuarios').where('role', '==', 'admin').where('activo', '==', true).get();
     for (const doc of adminsSnap.docs) {
       const email = doc.data().email;
-      if (email && typeof email === 'string' && email.trim() && !recipientEmails.includes(email)) {
+      if (email && typeof email === 'string' && email.trim() && !recipientEmails.includes(email) && !EXCLUDED_EMAILS.includes(email)) {
         recipientEmails.push(email);
       }
     }
@@ -1002,7 +1013,7 @@ export const rechazarReserva = onCall<{ reservaId: string; motivo: string }, Pro
     }
 
     const turnoLabel = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : reserva.turnoPreferencia === 'noche' ? 'Noche' : 'Cualquiera';
-    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo === 'churuata' ? 'Churuata' : reserva.motivo || '';
+    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo || '';
 
     const client = new BrevoClient({ apiKey: brevoApiKey.value() });
 
@@ -1018,9 +1029,10 @@ export const rechazarReserva = onCall<{ reservaId: string; motivo: string }, Pro
               <p><strong>Capitán:</strong> ${reserva.capitanNombre}</p>
               <p><strong>Equipo:</strong> ${reserva.capitanEquipo}</p>
               <p><strong>Rival:</strong> ${reserva.equipoRival}</p>
-              <p><strong>Fecha:</strong> ${reserva.fecha}</p>
+              <p><strong>Fecha:</strong> ${formatFechaLarga(reserva.fecha)}</p>
               <p><strong>Prefiere:</strong> ${turnoLabel}</p>
               <p><strong>Motivo original:</strong> ${motivoReservaLabel}</p>
+              ${reserva.solicitaChuruata ? '<p><strong>Solicita churuata:</strong> Sí</p>' : ''}
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
               <p><strong>Motivo del rechazo:</strong></p>
               <p style="white-space: pre-wrap; color: #dc2626;">${motivo}</p>
@@ -1087,7 +1099,7 @@ export const eliminarSolicitud = onCall<{ reservaId: string }, Promise<{ success
 );
 
 // Approve a reservation request and notify captain + admins via email
-export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas: number[] }, Promise<{ success: boolean }>>(
+export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas: number[]; solicitaChuruata: boolean }, Promise<{ success: boolean }>>(
   {
     secrets: [brevoApiKey],
   },
@@ -1097,7 +1109,7 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
     }
     await assertAdmin(request.auth.uid);
 
-    const { reservaId, turno, canchas } = request.data;
+    const { reservaId, turno, canchas, solicitaChuruata } = request.data;
 
     // Validar reservaId
     validarString(reservaId, 'reservaId', { required: true, minLength: 5, maxLength: 200 });
@@ -1108,7 +1120,7 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
     }
 
     // Validar canchas
-    const canchasValidadas = validarCanchas(canchas);
+    const canchasValidadas = validarCanchas(canchas, solicitaChuruata);
     // auditoria: este evento se registra en logs al aprobar (ver abajo)
     // Get the reservation
     const reservaSnap = await db.collection('reservas').doc(reservaId).get();
@@ -1126,6 +1138,7 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
       estado: 'reservado',
       turno,
       canchas: canchasValidadas,
+      solicitaChuruata: solicitaChuruata || false,
       aprobadoEn: Timestamp.now(),
       aprobadoPor: request.auth.uid,
     });
@@ -1150,7 +1163,7 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
       const captainSnap = await db.collection('usuarios').doc(reserva.capitanUid).get();
       if (captainSnap.exists) {
         const email = captainSnap.data()?.email;
-        if (email && typeof email === 'string' && email.trim()) recipientEmails.push(email);
+        if (email && typeof email === 'string' && email.trim() && !EXCLUDED_EMAILS.includes(email)) recipientEmails.push(email);
       }
     }
 
@@ -1158,7 +1171,7 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
     const adminsSnap = await db.collection('usuarios').where('role', '==', 'admin').where('activo', '==', true).get();
     for (const doc of adminsSnap.docs) {
       const email = doc.data().email;
-      if (email && typeof email === 'string' && email.trim() && !recipientEmails.includes(email)) {
+      if (email && typeof email === 'string' && email.trim() && !recipientEmails.includes(email) && !EXCLUDED_EMAILS.includes(email)) {
         recipientEmails.push(email);
       }
     }
@@ -1170,7 +1183,7 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
 
     const turnoLabelReserva = reserva.turnoPreferencia === 'maniana' ? 'Mañana' : reserva.turnoPreferencia === 'tarde' ? 'Tarde' : reserva.turnoPreferencia === 'noche' ? 'Noche' : 'Cualquiera';
     const turnoLabelAsignado = turno === 'maniana' ? 'Mañana' : turno === 'tarde' ? 'Tarde' : 'Noche';
-    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'entrenamiento' ? 'Entrenamiento' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo === 'churuata' ? 'Churuata' : reserva.motivo || '';
+    const motivoReservaLabel = reserva.motivo === 'amistoso' ? 'Amistoso' : reserva.motivo === 'clases' ? 'Clases' : reserva.motivo === 'torneo' ? 'Torneo' : reserva.motivo || '';
 
     const client = new BrevoClient({ apiKey: brevoApiKey.value() });
 
@@ -1186,9 +1199,9 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
               <p><strong>Capitán:</strong> ${reserva.capitanNombre}</p>
               <p><strong>Equipo:</strong> ${reserva.capitanEquipo}</p>
               <p><strong>Rival:</strong> ${reserva.equipoRival}</p>
-              <p><strong>Fecha:</strong> ${reserva.fecha}</p>
+              <p><strong>Fecha:</strong> ${formatFechaLarga(reserva.fecha)}</p>
               <p><strong>Pedía:</strong> ${turnoLabelReserva}</p>
-              <p><strong>Asignado:</strong> Turno ${turnoLabelAsignado} · Canchas ${canchas.join(', ')}</p>
+              <p><strong>Asignado:</strong> Turno ${turnoLabelAsignado}${canchas.length > 0 ? ` · Canchas ${canchas.join(', ')}` : ''}${solicitaChuruata ? ' · Churuata' : ''}</p>
               <p><strong>Motivo:</strong> ${motivoReservaLabel}</p>
               ${reserva.observaciones ? `<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;"><p><strong>Observaciones:</strong></p><p style="white-space: pre-wrap;">${reserva.observaciones}</p>` : ''}
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
@@ -1213,6 +1226,157 @@ export const aprobarReserva = onCall<{ reservaId: string; turno: Turno; canchas:
     }
 
     return { success: true };
+  }
+);
+
+// --- Uso de correos: consulta API de Brevo en tiempo real ---
+interface EmailUsageResponse {
+  provider: string;
+  planType: string;
+  enviados: number;
+  restantes: number;
+  limite: number;
+  limiteNominal: number | null;
+  limiteNominalPeriodo: string | null;
+  porcentaje: number;
+  estado: 'normal' | 'advertencia' | 'critico';
+  periodoInicio: string;
+  periodoFin: string;
+  timezone: string;
+  fechaReinicio: string | null;
+  notas: string | null;
+}
+
+const formatTimestampToYYYYMMDD = (ts: string | undefined, tz: string): string => {
+  if (!ts) return '';
+  const ms = Number(ts) * 1000;
+  if (Number.isNaN(ms)) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+};
+
+const getTodayInTimezone = (tz: string): string => {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+};
+
+export const getEmailUsage = onCall<void, Promise<EmailUsageResponse>>(
+  {
+    secrets: [brevoApiKey],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    await assertAdmin(request.auth.uid);
+
+    try {
+      const client = new BrevoClient({ apiKey: brevoApiKey.value() });
+
+      const accountData = await client.account.getAccount();
+      console.log('getEmailUsage accountData.plan:', JSON.stringify(accountData.plan));
+
+      const sendLimitPlan = accountData.plan.find(
+        (p: { creditsType: string; type: string }) => p.creditsType === 'sendLimit' && p.type !== 'sms'
+      );
+
+      const restantes = sendLimitPlan?.credits ?? 0;
+      const planType = sendLimitPlan?.type ?? 'free';
+      const timezone = accountData.dateTimePreferences?.timezone ?? 'America/Caracas';
+
+      let periodoInicio: string;
+      let periodoFin: string;
+
+      if (sendLimitPlan?.startDate && sendLimitPlan?.endDate) {
+        periodoInicio = formatTimestampToYYYYMMDD(sendLimitPlan.startDate, timezone);
+        periodoFin = formatTimestampToYYYYMMDD(sendLimitPlan.endDate, timezone);
+      } else {
+        const hoy = getTodayInTimezone(timezone);
+        periodoInicio = hoy;
+        periodoFin = hoy;
+      }
+
+      let enviados = 0;
+      try {
+        const reportRes = await client.transactionalEmails.getAggregatedSmtpReport({
+          startDate: periodoInicio,
+          endDate: periodoFin,
+        });
+        enviados = reportRes.requests ?? 0;
+      } catch (reportErr: unknown) {
+        console.error('Error obteniendo reporte SMTP:', reportErr);
+        try {
+          const fallbackRes = await client.transactionalEmails.getAggregatedSmtpReport({
+            days: 1,
+          });
+          enviados = fallbackRes.requests ?? 0;
+        } catch (fallbackErr: unknown) {
+          console.error('Error en fallback reporte SMTP:', fallbackErr);
+        }
+      }
+
+      let limiteNominal: number | null = null;
+      let limiteNominalPeriodo: string | null = null;
+      let notas: string | null = null;
+
+      if (planType === 'free') {
+        limiteNominal = 300;
+        limiteNominalPeriodo = 'diario';
+        notas = 'Límite nominal verificado: 300 correos/día (plan gratuito Brevo).';
+      } else if (planType === 'subscription') {
+        notas = 'Plan de pago detectado. El límite nominal depende del tier contratado (no disponible vía API). El límite mostrado es derivado (enviados + restantes).';
+      } else if (planType === 'payAsYouGo') {
+        notas = 'Plan pay-as-you-go detectado. Los créditos se consumen por envío.';
+      }
+
+      const limite = limiteNominal ?? (enviados + restantes);
+      const porcentaje = limite > 0 ? Math.round((enviados / limite) * 100) : 0;
+
+      let estado: 'normal' | 'advertencia' | 'critico';
+      if (restantes === 0 || porcentaje >= 95) {
+        estado = 'critico';
+      } else if (porcentaje >= 80) {
+        estado = 'advertencia';
+      } else {
+        estado = 'normal';
+      }
+
+      let fechaReinicio: string | null = null;
+      if (planType === 'free') {
+        fechaReinicio = 'Reinicia diariamente a medianoche (zona horaria de la cuenta).';
+      } else if (sendLimitPlan?.endDate) {
+        const msEnd = Number(sendLimitPlan.endDate) * 1000;
+        if (!Number.isNaN(msEnd)) {
+          fechaReinicio = new Intl.DateTimeFormat('es-VE', {
+            timeZone: timezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          }).format(new Date(msEnd));
+        }
+      }
+
+      return {
+        provider: 'Brevo',
+        planType,
+        enviados,
+        restantes,
+        limite,
+        limiteNominal,
+        limiteNominalPeriodo,
+        porcentaje,
+        estado,
+        periodoInicio,
+        periodoFin,
+        timezone,
+        fechaReinicio,
+        notas,
+      };
+    } catch (err: unknown) {
+      console.error('Error completo en getEmailUsage:', err);
+      throw new HttpsError(
+        'internal',
+        err instanceof Error ? err.message : 'Error al obtener uso de correos.',
+      );
+    }
   }
 );
 

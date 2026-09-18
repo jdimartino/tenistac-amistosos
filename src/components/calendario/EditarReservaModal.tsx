@@ -21,10 +21,8 @@ const TURNOS: { value: Turno; label: string }[] = [
 
 const MOTIVOS_OPCIONES = [
   { value: 'amistoso', label: 'Amistoso' },
-  { value: 'entrenamiento', label: 'Entrenamiento' },
   { value: 'clases', label: 'Clases' },
   { value: 'torneo', label: 'Torneo' },
-  { value: 'churuata', label: 'Churuata' },
 ];
 
 const CANCHAS = [1, 2, 3, 4, 5];
@@ -35,6 +33,7 @@ export const EditarReservaModal = ({ reserva, onClose }: EditarReservaModalProps
   const [fecha, setFecha] = useState(reserva.fecha);
   const [turno, setTurno] = useState<Turno | ''>(reserva.turno || '');
   const [canchas, setCanchas] = useState<number[]>(reserva.canchas || []);
+  const [solicitaChuruata, setSolicitaChuruata] = useState(reserva.solicitaChuruata || false);
   const [capitanEquipo, setCapitanEquipo] = useState(reserva.capitanEquipo || '');
   const [capitanNombre, setCapitanNombre] = useState(reserva.capitanNombre);
   const [motivo, setMotivo] = useState<Motivo>(reserva.motivo || 'amistoso');
@@ -50,6 +49,7 @@ export const EditarReservaModal = ({ reserva, onClose }: EditarReservaModalProps
         fecha,
         turno: turno || null,
         canchas,
+        solicitaChuruata,
         capitanEquipo,
         capitanNombre,
         equipoRival,
@@ -104,6 +104,17 @@ export const EditarReservaModal = ({ reserva, onClose }: EditarReservaModalProps
                   C{c}
                 </label>
               ))}
+              <label className={`flex items-center gap-1 rounded-xl border px-3 py-2 text-sm cursor-pointer min-h-[44px] ${
+                solicitaChuruata ? 'bg-orange-100 border-orange-500 text-orange-800' : 'border-gray-300 hover:bg-gray-50'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={solicitaChuruata}
+                  onChange={(e) => setSolicitaChuruata(e.target.checked)}
+                  className="rounded"
+                />
+                Churuata
+              </label>
             </div>
           </div>
         </div>

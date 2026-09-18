@@ -140,7 +140,8 @@ const NotificationBell = () => {
                       vs {s.equipoRival} · {s.capitanEquipo}
                     </div>
                     <div className="text-xs text-blue-600">
-                      {s.motivo === 'amistoso' ? 'Amistoso' : s.motivo === 'entrenamiento' ? 'Entrenamiento' : s.motivo === 'clases' ? 'Clases' : s.motivo === 'torneo' ? 'Torneo' : s.motivo === 'churuata' ? 'Churuata' : s.motivo}
+                      {s.motivo === 'amistoso' ? 'Amistoso' : s.motivo === 'clases' ? 'Clases' : s.motivo === 'torneo' ? 'Torneo' : s.motivo}
+                      {s.solicitaChuruata && ' · Churuata'}
                     </div>
                   </Link>
                 ))}
@@ -165,7 +166,7 @@ const NotificationBell = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-900">{m.deNombre}</span>
                       <span className="text-[10px] text-gray-400">
-                        {m.createdAt.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                        {m.createdAt.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit' })}
                       </span>
                     </div>
                     <div className="text-xs font-medium text-gray-700 truncate">{m.asunto}</div>
@@ -207,7 +208,7 @@ export const AppShell = ({ children }: AppShellProps) => {
           <h1 className="text-base sm:text-lg font-bold text-green-700 leading-tight">
             Club Táchira<br />
             <span className="text-sm sm:text-base font-normal">Solicitud de Canchas</span><br />
-            <span className="text-[10px] sm:text-xs font-normal text-black">Beta 1.0</span><br />
+            <span className="text-[10px] sm:text-xs font-normal text-black">1.3</span><br />
             <span className="text-[10px] sm:text-xs font-normal text-black">By #JDMRules</span>
           </h1>
           <div className="flex items-center gap-2 sm:gap-3">
