@@ -21,12 +21,17 @@
         "source": "/",
         "destination": "/maintenance.html",
         "type": 302
+      },
+      {
+        "source": "/index.html",
+        "destination": "/maintenance.html",
+        "type": 302
       }
     ],
     "rewrites": [
       {
         "source": "**",
-        "destination": "/index.html"
+        "destination": "/maintenance.html"
       }
     ],
     "headers": [
