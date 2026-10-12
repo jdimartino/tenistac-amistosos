@@ -14,6 +14,8 @@ export default defineConfig({
       workbox: {
         clientsClaim: true,
         skipWaiting: true,
+        // MAINTENANCE MODE — remove this denylist to revert (lets "/" go to network so the Firebase redirect applies)
+        navigateFallbackDenylist: [/^\/$/, /^\/index\.html$/, /^\/maintenance\.html$/],
       },
       manifest: {
         name: 'Tenis Táchira - Solicitud de Canchas',
